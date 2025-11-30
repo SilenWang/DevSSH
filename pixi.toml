@@ -1,0 +1,12 @@
+[workspace]
+authors = ["Sylens Wong <qiumin14@163.com>"]
+channels = ["conda-forge"]
+name = "DevSSH"
+platforms = ["linux-aarch64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+go = ">=1.25.4,<2"
+gcc_linux-aarch64 = ">=14.3.0,<15"
