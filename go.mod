@@ -1,10 +1,11 @@
-module github.com/sylens/project/DevSSH
+module devssh
 
 go 1.25.4
 
 require (
 	github.com/loft-sh/devpod v0.6.15
 	github.com/loft-sh/log v0.0.0-20240219160058-26d83ffb46ac
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.45.0
 )
@@ -151,7 +152,6 @@ require (
 	github.com/prometheus/common v0.60.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect

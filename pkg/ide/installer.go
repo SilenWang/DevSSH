@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sylens/project/DevSSH/pkg/ssh"
+	"devssh/pkg/ssh"
 )
 
 type IDE string

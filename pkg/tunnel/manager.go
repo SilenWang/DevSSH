@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sylens/project/DevSSH/pkg/ssh"
+	"devssh/pkg/ssh"
 )
 
 type TunnelManager struct {

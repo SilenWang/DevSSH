@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
+	"devssh/pkg/ssh"
 	"github.com/loft-sh/devpod/pkg/config"
 	"github.com/loft-sh/log"
 	"github.com/sirupsen/logrus"
-	"github.com/sylens/project/DevSSH/pkg/ssh"
 )
 
 type DevPodInstaller struct {

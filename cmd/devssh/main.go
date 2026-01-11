@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"devssh/pkg/config"
+	"devssh/pkg/ide"
+	"devssh/pkg/ssh"
+	"devssh/pkg/tunnel"
 	"github.com/spf13/cobra"
-	"github.com/sylens/project/DevSSH/pkg/config"
-	"github.com/sylens/project/DevSSH/pkg/ide"
-	"github.com/sylens/project/DevSSH/pkg/ssh"
-	"github.com/sylens/project/DevSSH/pkg/tunnel"
 )
 
 var (
