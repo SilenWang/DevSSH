@@ -2,10 +2,8 @@ package tunnel
 
 import (
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/sylens/project/DevSSH/pkg/ssh"
 )

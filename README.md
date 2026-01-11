@@ -162,10 +162,18 @@ DevSSH 的配置文件位于 `~/.config/devssh/config.json`，包含以下内容
 ## 工作原理
 
 1. **SSH 连接**: 使用 Go 的 `golang.org/x/crypto/ssh` 包建立 SSH 连接
-2. **IDE 安装**: 通过 SSH 在远程服务器上执行安装脚本
+2. **IDE 安装**: 复用 DevPod 的安装逻辑，支持 openvscode、Jupyter、Theia 等
 3. **端口检测**: 使用 `netstat`/`ss` 命令检测远程服务器上的监听端口
 4. **端口转发**: 创建 SSH 隧道将远程端口转发到本地
 5. **服务管理**: 在后台启动 Web IDE 服务并管理其生命周期
+
+## 技术特点
+
+- **复用 DevPod 代码**: 直接使用 DevPod 的 openvscode 安装逻辑，减少重复代码
+- **模块化设计**: 清晰的包结构，易于扩展新的 IDE 类型
+- **配置管理**: 自动保存主机配置和连接状态
+- **自动端口检测**: 智能识别运行中的 Web 服务并自动转发
+- **多认证支持**: 支持 SSH 密钥、密码、SSH agent 等多种认证方式
 
 ## 开发
 
@@ -181,14 +189,16 @@ DevSSH/
 │   │   ├── client.go
 │   │   └── tunnel.go
 │   ├── ide/                 # Web IDE 安装和管理
-│   │   └── installer.go
+│   │   ├── installer.go     # 原始安装器
+│   │   └── devpod_installer.go  # 复用 DevPod 逻辑的安装器
 │   ├── tunnel/              # 端口转发和隧道管理
 │   │   ├── manager.go
 │   │   └── port_scanner.go
 │   └── config/              # 配置管理
 │       └── config.go
 ├── go.mod
-└── README.md
+├── README.md
+└── example.sh              # 使用示例
 ```
 
 ### 构建和测试

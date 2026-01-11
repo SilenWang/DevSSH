@@ -174,3 +174,7 @@ func (c *Client) IsConnected() bool {
 func (c *Client) GetClient() *ssh.Client {
 	return c.client
 }
+
+func (c *Client) GetConfig() *Config {
+	return c.config
+}

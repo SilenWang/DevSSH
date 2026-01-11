@@ -63,12 +63,13 @@ func (i *Installer) Install() error {
 func (i *Installer) IsInstalled() (bool, error) {
 	switch i.ideType {
 	case VSCode, CodeServer:
-		// 检查 code-server 是否安装
-		output, err := i.sshClient.RunCommand("which code-server")
+		// 检查 openvscode-server 是否安装
+		checkCmd := "test -f ~/.openvscode-server/bin/openvscode-server && echo installed"
+		output, err := i.sshClient.RunCommand(checkCmd)
 		if err != nil {
 			return false, nil
 		}
-		return strings.TrimSpace(output) != "", nil
+		return strings.Contains(output, "installed"), nil
 
 	case Jupyter:
 		// 检查 jupyter 是否安装
@@ -105,37 +106,59 @@ func (i *Installer) Start(port int) error {
 }
 
 func (i *Installer) installVSCode() error {
-	// 安装 code-server (VSCode 的 Web 版本)
+	// 安装 openvscode-server (VSCode 的 Web 版本)
 	installScript := `
+#!/bin/bash
 set -e
-# 检测系统类型
-if [ -f /etc/os-release ]; then
-	. /etc/os-release
-	OS=$ID
-else
-	OS=$(uname -s)
+
+# 检查是否已经安装
+if [ -f ~/.openvscode-server/bin/openvscode-server ]; then
+	echo "openvscode-server is already installed"
+	exit 0
 fi
 
-# 安装依赖
-case $OS in
-	ubuntu|debian)
-		apt-get update
-		apt-get install -y curl wget
+# 检测系统架构
+ARCH=$(uname -m)
+case $ARCH in
+	x86_64|amd64)
+		ARCH="x64"
 		;;
-	centos|rhel|fedora)
-		yum install -y curl wget
-		;;
-	alpine)
-		apk add --no-cache curl wget
+	aarch64|arm64)
+		ARCH="arm64"
 		;;
 	*)
-		echo "Unsupported OS: $OS"
+		echo "Unsupported architecture: $ARCH"
 		exit 1
 		;;
 esac
 
-# 下载并安装 code-server
-curl -fsSL https://code-server.dev/install.sh | sh
+# 设置版本
+VERSION="v1.84.2"
+
+# 下载URL
+DOWNLOAD_URL="https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-${VERSION}/openvscode-server-${VERSION}-linux-${ARCH}.tar.gz"
+
+echo "Downloading openvscode-server ${VERSION} for ${ARCH}..."
+
+# 创建目录
+mkdir -p ~/.openvscode-server
+
+# 下载并解压
+if command -v curl &> /dev/null; then
+	curl -L "$DOWNLOAD_URL" | tar -xz -C ~/.openvscode-server --strip-components=1
+elif command -v wget &> /dev/null; then
+	wget -qO- "$DOWNLOAD_URL" | tar -xz -C ~/.openvscode-server --strip-components=1
+else
+	echo "Error: curl or wget is required"
+	exit 1
+fi
+
+if [ $? -eq 0 ]; then
+	echo "openvscode-server installed successfully at ~/.openvscode-server"
+else
+	echo "Failed to install openvscode-server"
+	exit 1
+fi
 `
 
 	_, err := i.sshClient.RunCommand(installScript)
@@ -195,8 +218,8 @@ npm install -g @theia/cli
 }
 
 func (i *Installer) startCodeServer(port int) error {
-	// 在后台启动 code-server
-	cmd := fmt.Sprintf("nohup code-server --bind-addr 0.0.0.0:%d --auth none > /tmp/code-server.log 2>&1 &", port)
+	// 在后台启动 openvscode-server
+	cmd := fmt.Sprintf("nohup ~/.openvscode-server/bin/openvscode-server --host 0.0.0.0 --port %d --without-connection-token > /tmp/openvscode.log 2>&1 &", port)
 	_, err := i.sshClient.RunCommand(cmd)
 	return err
 }

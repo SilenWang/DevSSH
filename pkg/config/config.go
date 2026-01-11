@@ -152,3 +152,15 @@ func GetConfigDir() (string, error) {
 
 	return filepath.Join(homeDir, ".config", "devssh"), nil
 }
+
+func Load() (*Config, error) {
+	config := NewConfig()
+	if err := config.Load(); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+func Save(cfg *Config) error {
+	return cfg.Save()
+}
