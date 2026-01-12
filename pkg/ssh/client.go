@@ -43,9 +43,27 @@ func (c *Client) Connect() error {
 		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         c.config.Timeout,
+		Config: ssh.Config{
+			Ciphers: []string{
+				"aes128-ctr", "aes192-ctr", "aes256-ctr",
+				"aes128-gcm@openssh.com", "aes256-gcm@openssh.com",
+				"chacha20-poly1305@openssh.com",
+			},
+		},
+		ClientVersion: "SSH-2.0-OpenSSH_9.2",
 	}
 
 	address := net.JoinHostPort(c.config.Host, c.config.Port)
+	fmt.Printf("Attempting to connect to %s with timeout %v\n", address, c.config.Timeout)
+
+	// 先测试TCP连接
+	tcpConn, tcpErr := net.DialTimeout("tcp", address, c.config.Timeout)
+	if tcpErr != nil {
+		return fmt.Errorf("TCP connection failed: %w", tcpErr)
+	}
+	tcpConn.Close()
+	fmt.Println("TCP connection successful, attempting SSH handshake...")
+
 	client, err := ssh.Dial("tcp", address, sshConfig)
 	if err != nil {
 		return fmt.Errorf("failed to dial SSH: %w", err)
