@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"devssh/pkg/ssh"
 )
 
 type HostConfig struct {
@@ -110,6 +113,50 @@ func (c *Config) ListHosts() []HostConfig {
 		hosts = append(hosts, host)
 	}
 	return hosts
+}
+
+// ImportSSHHosts 从SSH配置文件中导入主机
+func (c *Config) ImportSSHHosts() (int, error) {
+	parser := ssh.NewSSHConfigParser()
+	sshHosts, err := parser.Parse()
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse SSH config: %w", err)
+	}
+
+	imported := 0
+	for hostName, sshHost := range sshHosts {
+		// 跳过通配符主机
+		if strings.Contains(hostName, "*") {
+			continue
+		}
+
+		// 检查是否已存在
+		if _, exists := c.Hosts[hostName]; !exists {
+			hostConfig := HostConfig{
+				Name:     hostName,
+				Host:     sshHost.HostName,
+				Port:     sshHost.Port,
+				Username: sshHost.User,
+				KeyPath:  sshHost.IdentityFile,
+			}
+
+			// 如果没有指定主机名，使用主机别名
+			if hostConfig.Host == "" {
+				hostConfig.Host = hostName
+			}
+
+			c.Hosts[hostName] = hostConfig
+			imported++
+		}
+	}
+
+	if imported > 0 {
+		if err := c.Save(); err != nil {
+			return imported, fmt.Errorf("imported %d hosts but failed to save config: %w", imported, err)
+		}
+	}
+
+	return imported, nil
 }
 
 func (c *Config) AddConnection(conn ConnectionConfig) error {

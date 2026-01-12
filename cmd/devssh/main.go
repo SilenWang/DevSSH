@@ -31,6 +31,8 @@ func main() {
 		newForwardCmd(),
 		newListCmd(),
 		newStopCmd(),
+		newSSHHostsCmd(),
+		newImportSSHCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -59,28 +61,51 @@ func newConnectCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := args[0]
 
-			// Parse host if it contains user@host format
-			if strings.Contains(host, "@") {
-				parts := strings.Split(host, "@")
-				if len(parts) == 2 {
-					user = parts[0]
-					host = parts[1]
+			var client *ssh.Client
+			var err error
+
+			// 检查是否是SSH配置文件中的主机
+			parser := ssh.NewSSHConfigParser()
+			if sshHosts, _ := parser.ListHosts(); len(sshHosts) > 0 {
+				for _, sshHost := range sshHosts {
+					if sshHost == host {
+						// 从SSH配置文件创建客户端
+						client, err = ssh.NewClientFromSSHConfig(host)
+						if err != nil {
+							return fmt.Errorf("failed to create client from SSH config: %w", err)
+						}
+						break
+					}
 				}
 			}
 
-			// Create SSH config
-			sshConfig := &ssh.Config{
-				Host:     host,
-				Port:     port,
-				Username: user,
-				KeyPath:  keyPath,
-				Password: password,
-				Timeout:  time.Duration(timeout) * time.Second,
+			// 如果不是SSH配置文件中的主机，使用传统方式
+			if client == nil {
+				// Parse host if it contains user@host format
+				if strings.Contains(host, "@") {
+					parts := strings.Split(host, "@")
+					if len(parts) == 2 {
+						user = parts[0]
+						host = parts[1]
+					}
+				}
+
+				// Create SSH config
+				sshConfig := &ssh.Config{
+					Host:     host,
+					Port:     port,
+					Username: user,
+					KeyPath:  keyPath,
+					Password: password,
+					Timeout:  time.Duration(timeout) * time.Second,
+				}
+
+				client = ssh.NewClient(sshConfig)
 			}
 
-			// Connect to SSH
-			client := ssh.NewClient(sshConfig)
-			fmt.Printf("Connecting to %s@%s:%s...\n", user, host, port)
+			// 获取SSH配置信息
+			sshConfig := client.GetConfig()
+			fmt.Printf("Connecting to %s@%s:%s...\n", sshConfig.Username, sshConfig.Host, sshConfig.Port)
 			if err := client.Connect(); err != nil {
 				return fmt.Errorf("failed to connect: %w", err)
 			}
@@ -227,19 +252,51 @@ func newInstallCmd() *cobra.Command {
 				}
 			}
 
-			// Create SSH config
-			sshConfig := &ssh.Config{
-				Host:     host,
-				Port:     port,
-				Username: user,
-				KeyPath:  keyPath,
-				Password: password,
-				Timeout:  time.Duration(timeout) * time.Second,
+			var client *ssh.Client
+			var err error
+
+			// 检查是否是SSH配置文件中的主机
+			parser := ssh.NewSSHConfigParser()
+			if sshHosts, _ := parser.ListHosts(); len(sshHosts) > 0 {
+				for _, sshHost := range sshHosts {
+					if sshHost == host {
+						// 从SSH配置文件创建客户端
+						client, err = ssh.NewClientFromSSHConfig(host)
+						if err != nil {
+							return fmt.Errorf("failed to create client from SSH config: %w", err)
+						}
+						break
+					}
+				}
 			}
 
-			// Connect to SSH
-			client := ssh.NewClient(sshConfig)
-			fmt.Printf("Connecting to %s@%s:%s...\n", user, host, port)
+			// 如果不是SSH配置文件中的主机，使用传统方式
+			if client == nil {
+				// Parse host if it contains user@host format
+				if strings.Contains(host, "@") {
+					parts := strings.Split(host, "@")
+					if len(parts) == 2 {
+						user = parts[0]
+						host = parts[1]
+					}
+				}
+
+				// Create SSH config
+				sshConfig := &ssh.Config{
+					Host:     host,
+					Port:     port,
+					Username: user,
+					KeyPath:  keyPath,
+					Password: password,
+					Timeout:  time.Duration(timeout) * time.Second,
+				}
+
+				client = ssh.NewClient(sshConfig)
+			}
+
+			// 获取SSH配置信息
+			sshConfig := client.GetConfig()
+			fmt.Printf("Connecting to %s@%s:%s...\n", sshConfig.Username, sshConfig.Host, sshConfig.Port)
 			if err := client.Connect(); err != nil {
 				return fmt.Errorf("failed to connect: %w", err)
 			}
@@ -310,19 +367,51 @@ func newForwardCmd() *cobra.Command {
 				}
 			}
 
-			// Create SSH config
-			sshConfig := &ssh.Config{
-				Host:     host,
-				Port:     port,
-				Username: user,
-				KeyPath:  keyPath,
-				Password: password,
-				Timeout:  time.Duration(timeout) * time.Second,
+			var client *ssh.Client
+			var err error
+
+			// 检查是否是SSH配置文件中的主机
+			parser := ssh.NewSSHConfigParser()
+			if sshHosts, _ := parser.ListHosts(); len(sshHosts) > 0 {
+				for _, sshHost := range sshHosts {
+					if sshHost == host {
+						// 从SSH配置文件创建客户端
+						client, err = ssh.NewClientFromSSHConfig(host)
+						if err != nil {
+							return fmt.Errorf("failed to create client from SSH config: %w", err)
+						}
+						break
+					}
+				}
 			}
 
-			// Connect to SSH
-			client := ssh.NewClient(sshConfig)
-			fmt.Printf("Connecting to %s@%s:%s...\n", user, host, port)
+			// 如果不是SSH配置文件中的主机，使用传统方式
+			if client == nil {
+				// Parse host if it contains user@host format
+				if strings.Contains(host, "@") {
+					parts := strings.Split(host, "@")
+					if len(parts) == 2 {
+						user = parts[0]
+						host = parts[1]
+					}
+				}
+
+				// Create SSH config
+				sshConfig := &ssh.Config{
+					Host:     host,
+					Port:     port,
+					Username: user,
+					KeyPath:  keyPath,
+					Password: password,
+					Timeout:  time.Duration(timeout) * time.Second,
+				}
+
+				client = ssh.NewClient(sshConfig)
+			}
+
+			// 获取SSH配置信息
+			sshConfig := client.GetConfig()
+			fmt.Printf("Connecting to %s@%s:%s...\n", sshConfig.Username, sshConfig.Host, sshConfig.Port)
 			if err := client.Connect(); err != nil {
 				return fmt.Errorf("failed to connect: %w", err)
 			}
@@ -456,6 +545,62 @@ func newStopCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Connection %s stopped\n", connectionID)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newSSHHostsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "ssh-hosts",
+		Short: "List hosts from SSH config file",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			parser := ssh.NewSSHConfigParser()
+			hosts, err := parser.ListHosts()
+			if err != nil {
+				return fmt.Errorf("failed to list SSH hosts: %w", err)
+			}
+
+			if len(hosts) == 0 {
+				fmt.Println("No hosts found in SSH config file")
+				return nil
+			}
+
+			fmt.Println("Hosts from SSH config file:")
+			for _, host := range hosts {
+				fmt.Printf("  %s\n", host)
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newImportSSHCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "import-ssh",
+		Short: "Import hosts from SSH config file",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			imported, err := cfg.ImportSSHHosts()
+			if err != nil {
+				return fmt.Errorf("failed to import SSH hosts: %w", err)
+			}
+
+			if imported == 0 {
+				fmt.Println("No new hosts imported from SSH config file")
+			} else {
+				fmt.Printf("Successfully imported %d hosts from SSH config file\n", imported)
+			}
+
 			return nil
 		},
 	}

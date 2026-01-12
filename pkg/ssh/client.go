@@ -32,6 +32,18 @@ func NewClient(config *Config) *Client {
 	}
 }
 
+// NewClientFromSSHConfig 从SSH配置文件创建客户端
+func NewClientFromSSHConfig(hostName string) (*Client, error) {
+	parser := NewSSHConfigParser()
+	sshHostConfig, err := parser.GetHost(hostName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host config from SSH config: %w", err)
+	}
+
+	config := sshHostConfig.GetHostConfigForSSH()
+	return NewClient(config), nil
+}
+
 func (c *Client) Connect() error {
 	authMethods, err := c.getAuthMethods()
 	if err != nil {
@@ -131,16 +143,16 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 		authMethods = append(authMethods, ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers))
 	}
 
-	// 尝试私钥文件
+	// 首先尝试配置文件中指定的私钥文件
 	if c.config.KeyPath != "" {
 		key, err := os.ReadFile(c.config.KeyPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read private key: %w", err)
+			return nil, fmt.Errorf("failed to read private key from config: %w", err)
 		}
 
 		signer, err := ssh.ParsePrivateKey(key)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse private key: %w", err)
+			return nil, fmt.Errorf("failed to parse private key from config: %w", err)
 		}
 
 		authMethods = append(authMethods, ssh.PublicKeys(signer))
