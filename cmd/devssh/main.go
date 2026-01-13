@@ -66,21 +66,15 @@ func newConnectCmd() *cobra.Command {
 
 			// 检查是否是SSH配置文件中的主机
 			parser := ssh.NewSSHConfigParser()
-			if sshHosts, _ := parser.ListHosts(); len(sshHosts) > 0 {
-				for _, sshHost := range sshHosts {
-					if sshHost == host {
-						// 从SSH配置文件创建客户端
-						client, err = ssh.NewClientFromSSHConfig(host)
-						if err != nil {
-							return fmt.Errorf("failed to create client from SSH config: %w", err)
-						}
-						break
-					}
+			_, sshErr := parser.GetHost(host)
+			if sshErr == nil {
+				// 从SSH配置文件创建客户端
+				client, err = ssh.NewClientFromSSHConfig(host)
+				if err != nil {
+					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
-			}
-
-			// 如果不是SSH配置文件中的主机，使用传统方式
-			if client == nil {
+			} else {
+				// 如果不是SSH配置文件中的主机，使用传统方式
 				// Parse host if it contains user@host format
 				if strings.Contains(host, "@") {
 					parts := strings.Split(host, "@")
@@ -88,6 +82,11 @@ func newConnectCmd() *cobra.Command {
 						user = parts[0]
 						host = parts[1]
 					}
+				}
+
+				// 检查必需参数
+				if user == "" {
+					return fmt.Errorf("username is required when host is not in SSH config file. Use -u flag or user@host format")
 				}
 
 				// Create SSH config
@@ -221,8 +220,6 @@ func newConnectCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")
 
-	cmd.MarkFlagRequired("user")
-
 	return cmd
 }
 
@@ -334,8 +331,6 @@ func newInstallCmd() *cobra.Command {
 	cmd.Flags().StringVar(&password, "password", "", "SSH password")
 	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server, jupyter, theia)")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")
-
-	cmd.MarkFlagRequired("user")
 
 	return cmd
 }
@@ -487,8 +482,6 @@ func newForwardCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&forwards, "ports", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")
-
-	cmd.MarkFlagRequired("user")
 
 	return cmd
 }
