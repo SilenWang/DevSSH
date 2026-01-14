@@ -1,6 +1,6 @@
 # DevSSH
 
-A CLI tool to quickly set up a remote development tools over SSH.
+A CLI tool to quickly set up remote development tools over SSH.
 
 ## Overview
 
@@ -8,9 +8,13 @@ A CLI tool to quickly set up a remote development tools over SSH.
 
 ## Why DevSSH?
 
-`DevSSH` draws inspiration from projects like [**sshcode**](https://github.com/coder/sshcode) (arhieved) and [**devpod**](https://github.com/loft-sh/devpod), but aims to be simpler and more direct for SSH‑based remote development. 
+`DevSSH` draws inspiration from projects like [**sshcode**](https://github.com/coder/sshcode) (archived) and [**devpod**](https://github.com/loft-sh/devpod), but aims to be simpler and more direct for SSH‑based remote development. 
 
-Even on devices with limited resources—such as Chromebooks(memory is constrained) or Fydetab Duo(GPU acceleration is incomplete), DevSSH enables productive development by running all workloads on a remote machine.
+Even on devices with limited resources—such as Chromebooks (memory is constrained) or Fydetab Duo (GPU acceleration is incomplete)—DevSSH enables productive development by running all workloads on a remote machine.
+
+## Development Tools
+
+This project was developed using [opencode](https://github.com/anomalyco/opencode) and [DeepSeek](https://www.deepseek.com/). These AI-assisted tools were used to generate code, accelerate debugging, and improve overall development efficiency.
 
 ## Building from Source
 
