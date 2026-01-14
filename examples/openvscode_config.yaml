@@ -1,0 +1,88 @@
+# DevSSH OpenVSCode 配置示例
+# 使用DevPod方式实现的openvscode安装器
+
+# 基本配置
+version: "v1.84.2"  # openvscode版本
+port: 10800         # 默认端口
+
+# 扩展列表
+extensions:
+  - "ms-python.python"      # Python支持
+  - "ms-vscode.go"          # Go语言支持
+  - "golang.go"             # Go工具
+  - "ms-azuretools.vscode-docker"  # Docker支持
+  - "redhat.vscode-yaml"    # YAML支持
+  - "eamodio.gitlens"       # Git增强
+
+# VSCode设置
+settings: |
+  {
+    // 编辑器设置
+    "editor.fontSize": 14,
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.wordWrap": "on",
+    "editor.minimap.enabled": true,
+    
+    // 文件设置
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000,
+    
+    // 终端设置
+    "terminal.integrated.shell.linux": "/bin/bash",
+    "terminal.integrated.fontSize": 13,
+    
+    // 工作区设置
+    "workbench.colorTheme": "Default Dark+",
+    "workbench.iconTheme": "vs-seti",
+    
+    // 语言特定设置
+    "[python]": {
+      "editor.tabSize": 4
+    },
+    "[go]": {
+      "editor.insertSpaces": false,
+      "editor.tabSize": 4
+    },
+    
+    // 扩展特定设置
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "go.useLanguageServer": true
+  }
+
+# 高级选项
+options:
+  FORWARD_PORTS: "true"     # 自动端口转发
+  OPEN: "false"             # 不自动打开浏览器
+  BIND_ADDRESS: ""          # 绑定地址（空表示所有接口）
+  
+  # 自定义下载URL（可选）
+  # DOWNLOAD_AMD64: "https://custom.url/openvscode-amd64.tar.gz"
+  # DOWNLOAD_ARM64: "https://custom.url/openvscode-arm64.tar.gz"
+
+# 使用示例
+# 1. 通过代码使用：
+# ```
+# import "devssh/pkg/ide"
+# import "github.com/loft-sh/devpod/pkg/config"
+# 
+# values := map[string]config.OptionValue{
+#     "VERSION": {Value: "v1.84.2"},
+#     "FORWARD_PORTS": {Value: "true"},
+# }
+# 
+# installer := ide.NewInstallerWithOptions(sshClient, ide.VSCode, values, logger)
+# installer.SetOpenVSCodeExtensions(extensions)
+# installer.SetOpenVSCodeSettings(settings)
+# err := installer.Install()
+# ```
+# 
+# 2. 通过命令行使用（需要实现）：
+# ```
+# devssh ide install vscode \
+#   --version v1.84.2 \
+#   --extension ms-python.python \
+#   --extension ms-vscode.go \
+#   --settings-file settings.json
+# ```

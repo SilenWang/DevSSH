@@ -112,7 +112,7 @@ func newConnectCmd() *cobra.Command {
 			fmt.Println("Connected successfully")
 
 			// Create IDE installer
-			ideInstaller := ide.NewDevPodInstaller(client, ide.IDE(ideType))
+			ideInstaller := ide.NewInstaller(client, ide.IDE(ideType))
 
 			// Install IDE if requested
 			if install {
@@ -214,7 +214,7 @@ func newConnectCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&port, "port", "p", "22", "SSH port")
 	cmd.Flags().StringVar(&keyPath, "key", "", "SSH private key path")
 	cmd.Flags().StringVar(&password, "password", "", "SSH password")
-	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server, jupyter, theia)")
+	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server)")
 	cmd.Flags().BoolVar(&install, "install", true, "Install IDE if not present")
 	cmd.Flags().StringSliceVar(&forwards, "forward", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
@@ -301,7 +301,7 @@ func newInstallCmd() *cobra.Command {
 			fmt.Println("Connected successfully")
 
 			// Create IDE installer
-			ideInstaller := ide.NewDevPodInstaller(client, ide.IDE(ideType))
+			ideInstaller := ide.NewInstaller(client, ide.IDE(ideType))
 
 			// Check if already installed
 			installed, err := ideInstaller.IsInstalled()
@@ -329,7 +329,7 @@ func newInstallCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&port, "port", "p", "22", "SSH port")
 	cmd.Flags().StringVar(&keyPath, "key", "", "SSH private key path")
 	cmd.Flags().StringVar(&password, "password", "", "SSH password")
-	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server, jupyter, theia)")
+	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server)")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")
 
 	return cmd
