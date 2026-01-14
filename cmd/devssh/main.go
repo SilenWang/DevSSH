@@ -33,6 +33,7 @@ func main() {
 		newStopCmd(),
 		newSSHHostsCmd(),
 		newImportSSHCmd(),
+		newAgentCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -111,8 +112,11 @@ func newConnectCmd() *cobra.Command {
 			defer client.Close()
 			fmt.Println("Connected successfully")
 
-			// Create IDE installer
-			ideInstaller := ide.NewInstaller(client, ide.IDE(ideType))
+			// Create IDE installer (使用兼容性安装器，自动选择Agent或传统方式)
+			ideInstaller, err := ide.NewCompatibilityInstaller(client, ide.IDE(ideType))
+			if err != nil {
+				return fmt.Errorf("failed to create IDE installer: %w", err)
+			}
 
 			// Install IDE if requested
 			if install {
@@ -300,8 +304,11 @@ func newInstallCmd() *cobra.Command {
 			defer client.Close()
 			fmt.Println("Connected successfully")
 
-			// Create IDE installer
-			ideInstaller := ide.NewInstaller(client, ide.IDE(ideType))
+			// Create IDE installer (使用兼容性安装器，自动选择Agent或传统方式)
+			ideInstaller, err := ide.NewCompatibilityInstaller(client, ide.IDE(ideType))
+			if err != nil {
+				return fmt.Errorf("failed to create IDE installer: %w", err)
+			}
 
 			// Check if already installed
 			installed, err := ideInstaller.IsInstalled()

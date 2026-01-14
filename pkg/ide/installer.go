@@ -18,25 +18,46 @@ const (
 	CodeServer IDE = "code-server"
 )
 
-type Installer struct {
+// Installer IDE安装器接口
+type Installer interface {
+	// 安装IDE
+	Install() error
+	// 启动IDE
+	Start(port int) error
+	// 检查是否已安装
+	IsInstalled() (bool, error)
+	// 获取默认端口
+	GetDefaultPort() int
+	// 获取名称
+	GetName() string
+	// 设置日志器
+	SetLogger(logger log.Logger)
+	// 设置openvscode扩展
+	SetOpenVSCodeExtensions(extensions []string)
+	// 设置openvscode配置
+	SetOpenVSCodeSettings(settings string)
+}
+
+// LegacyInstaller 传统安装器（直接SSH命令执行）
+type LegacyInstaller struct {
 	sshClient *ssh.Client
 	ideType   IDE
 	values    map[string]config.OptionValue
 	logger    log.Logger
 }
 
-func NewInstaller(sshClient *ssh.Client, ideType IDE) *Installer {
+func NewInstaller(sshClient *ssh.Client, ideType IDE) Installer {
 	values := map[string]config.OptionValue{
 		"FORWARD_PORTS": {Value: "true"},
 		"OPEN":          {Value: "false"},
 		"BIND_ADDRESS":  {Value: ""},
-		"VERSION":       {Value: "v1.84.2"},
+		"VERSION":       {Value: "v1.105.1"},
 	}
 
 	// 创建一个简单的logger
 	logger := log.NewStreamLogger(os.Stdout, os.Stderr, logrus.InfoLevel)
 
-	return &Installer{
+	return &LegacyInstaller{
 		sshClient: sshClient,
 		ideType:   ideType,
 		values:    values,
@@ -45,7 +66,7 @@ func NewInstaller(sshClient *ssh.Client, ideType IDE) *Installer {
 }
 
 // NewInstallerWithOptions 创建带有配置选项的安装器
-func NewInstallerWithOptions(sshClient *ssh.Client, ideType IDE, values map[string]config.OptionValue, logger log.Logger) *Installer {
+func NewInstallerWithOptions(sshClient *ssh.Client, ideType IDE, values map[string]config.OptionValue, logger log.Logger) Installer {
 	if values == nil {
 		values = make(map[string]config.OptionValue)
 	}
@@ -53,7 +74,7 @@ func NewInstallerWithOptions(sshClient *ssh.Client, ideType IDE, values map[stri
 		logger = log.NewStreamLogger(os.Stdout, os.Stderr, logrus.InfoLevel)
 	}
 
-	return &Installer{
+	return &LegacyInstaller{
 		sshClient: sshClient,
 		ideType:   ideType,
 		values:    values,
@@ -61,7 +82,7 @@ func NewInstallerWithOptions(sshClient *ssh.Client, ideType IDE, values map[stri
 	}
 }
 
-func (i *Installer) Install() error {
+func (i *LegacyInstaller) Install() error {
 	if !i.sshClient.IsConnected() {
 		return fmt.Errorf("SSH client not connected")
 	}
@@ -74,13 +95,13 @@ func (i *Installer) Install() error {
 	}
 }
 
-func (i *Installer) installOpenVSCode() error {
+func (i *LegacyInstaller) installOpenVSCode() error {
 	// 使用新的SSHOpenVSCodeServer适配器
 	server := NewSSHOpenVSCodeServer(i.sshClient, i.values, i.logger)
 	return server.Install()
 }
 
-func (i *Installer) Start(port int) error {
+func (i *LegacyInstaller) Start(port int) error {
 	switch i.ideType {
 	case VSCode, CodeServer:
 		return i.startOpenVSCode(port)
@@ -89,13 +110,13 @@ func (i *Installer) Start(port int) error {
 	}
 }
 
-func (i *Installer) startOpenVSCode(port int) error {
+func (i *LegacyInstaller) startOpenVSCode(port int) error {
 	// 使用新的SSHOpenVSCodeServer适配器
 	server := NewSSHOpenVSCodeServer(i.sshClient, i.values, i.logger)
 	return server.Start(port)
 }
 
-func (i *Installer) IsInstalled() (bool, error) {
+func (i *LegacyInstaller) IsInstalled() (bool, error) {
 	switch i.ideType {
 	case VSCode, CodeServer:
 		// 使用新的SSHOpenVSCodeServer适配器检查
@@ -106,7 +127,7 @@ func (i *Installer) IsInstalled() (bool, error) {
 	}
 }
 
-func (i *Installer) GetDefaultPort() int {
+func (i *LegacyInstaller) GetDefaultPort() int {
 	switch i.ideType {
 	case VSCode, CodeServer:
 		// 使用新的SSHOpenVSCodeServer适配器获取默认端口
@@ -117,16 +138,16 @@ func (i *Installer) GetDefaultPort() int {
 	}
 }
 
-func (i *Installer) GetName() string {
+func (i *LegacyInstaller) GetName() string {
 	return string(i.ideType)
 }
 
-func (i *Installer) SetLogger(logger log.Logger) {
+func (i *LegacyInstaller) SetLogger(logger log.Logger) {
 	i.logger = logger
 }
 
 // SetOpenVSCodeExtensions 设置openvscode扩展
-func (i *Installer) SetOpenVSCodeExtensions(extensions []string) {
+func (i *LegacyInstaller) SetOpenVSCodeExtensions(extensions []string) {
 	if i.ideType == VSCode || i.ideType == CodeServer {
 		server := NewSSHOpenVSCodeServer(i.sshClient, i.values, i.logger)
 		server.SetExtensions(extensions)
@@ -134,7 +155,7 @@ func (i *Installer) SetOpenVSCodeExtensions(extensions []string) {
 }
 
 // SetOpenVSCodeSettings 设置openvscode配置
-func (i *Installer) SetOpenVSCodeSettings(settings string) {
+func (i *LegacyInstaller) SetOpenVSCodeSettings(settings string) {
 	if i.ideType == VSCode || i.ideType == CodeServer {
 		server := NewSSHOpenVSCodeServer(i.sshClient, i.values, i.logger)
 		server.SetSettings(settings)
