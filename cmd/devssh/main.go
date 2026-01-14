@@ -1,3 +1,7 @@
+// DevSSH - SSH-based remote development environment setup
+// Copyright (c) 2025 The DevSSH Authors
+// Licensed under the Mozilla Public License 2.0
+// See https://www.mozilla.org/en-US/MPL/2.0/ for details.
 package main
 
 import (
@@ -11,6 +15,7 @@ import (
 	"devssh/pkg/ide"
 	"devssh/pkg/ssh"
 	"devssh/pkg/tunnel"
+
 	"github.com/spf13/cobra"
 )
 

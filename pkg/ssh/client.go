@@ -208,3 +208,8 @@ func (c *Client) GetClient() *ssh.Client {
 func (c *Client) GetConfig() *Config {
 	return c.config
 }
+
+// NewSCPClient 创建SCP客户端
+func (c *Client) NewSCPClient() *SCPClient {
+	return NewSCPClient(c)
+}

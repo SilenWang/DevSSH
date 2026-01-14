@@ -30,7 +30,7 @@ func NewInstaller(sshClient *ssh.Client, ideType IDE) *Installer {
 		"FORWARD_PORTS": {Value: "true"},
 		"OPEN":          {Value: "false"},
 		"BIND_ADDRESS":  {Value: ""},
-		"VERSION":       {Value: "v1.84.2"},
+		"VERSION":       {Value: "v1.105.1"},
 	}
 
 	// 创建一个简单的logger
