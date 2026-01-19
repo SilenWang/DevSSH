@@ -73,8 +73,20 @@ func newConnectCmd() *cobra.Command {
 			parser := ssh.NewSSHConfigParser()
 			_, sshErr := parser.GetHost(host)
 			if sshErr == nil {
-				// 从SSH配置文件创建客户端
-				client, err = ssh.NewClientFromSSHConfig(host)
+				// 从SSH配置文件创建客户端，使用命令行参数覆盖
+				overrideConfig := &ssh.Config{
+					Host: host,
+
+					Username: user,
+					KeyPath:  keyPath,
+					Password: password,
+					Timeout:  time.Duration(timeout) * time.Second,
+				}
+				// 只有当用户显式提供了-p参数时才覆盖端口
+				if port != "22" {
+					overrideConfig.Port = port
+				}
+				client, err = ssh.NewClientFromSSHConfig(host, overrideConfig)
 				if err != nil {
 					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
@@ -259,21 +271,27 @@ func newInstallCmd() *cobra.Command {
 
 			// 检查是否是SSH配置文件中的主机
 			parser := ssh.NewSSHConfigParser()
-			if sshHosts, _ := parser.ListHosts(); len(sshHosts) > 0 {
-				for _, sshHost := range sshHosts {
-					if sshHost == host {
-						// 从SSH配置文件创建客户端
-						client, err = ssh.NewClientFromSSHConfig(host)
-						if err != nil {
-							return fmt.Errorf("failed to create client from SSH config: %w", err)
-						}
-						break
-					}
-				}
-			}
+			_, sshErr := parser.GetHost(host)
+			if sshErr == nil {
+				// 从SSH配置文件创建客户端，使用命令行参数覆盖
+				overrideConfig := &ssh.Config{
+					Host: host,
 
-			// 如果不是SSH配置文件中的主机，使用传统方式
-			if client == nil {
+					Username: user,
+					KeyPath:  keyPath,
+					Password: password,
+					Timeout:  time.Duration(timeout) * time.Second,
+				}
+				// 只有当用户显式提供了-p参数时才覆盖端口
+				if port != "22" {
+					overrideConfig.Port = port
+				}
+				client, err = ssh.NewClientFromSSHConfig(host, overrideConfig)
+				if err != nil {
+					return fmt.Errorf("failed to create client from SSH config: %w", err)
+				}
+			} else {
+				// 如果不是SSH配置文件中的主机，使用传统方式
 				// Parse host if it contains user@host format
 				if strings.Contains(host, "@") {
 					parts := strings.Split(host, "@")
@@ -281,6 +299,11 @@ func newInstallCmd() *cobra.Command {
 						user = parts[0]
 						host = parts[1]
 					}
+				}
+
+				// 检查必需参数
+				if user == "" {
+					return fmt.Errorf("username is required when host is not in SSH config file. Use -u flag or user@host format")
 				}
 
 				// Create SSH config
@@ -295,7 +318,6 @@ func newInstallCmd() *cobra.Command {
 
 				client = ssh.NewClient(sshConfig)
 			}
-
 			// 获取SSH配置信息
 			sshConfig := client.GetConfig()
 			fmt.Printf("Connecting to %s@%s:%s...\n", sshConfig.Username, sshConfig.Host, sshConfig.Port)
@@ -372,21 +394,27 @@ func newForwardCmd() *cobra.Command {
 
 			// 检查是否是SSH配置文件中的主机
 			parser := ssh.NewSSHConfigParser()
-			if sshHosts, _ := parser.ListHosts(); len(sshHosts) > 0 {
-				for _, sshHost := range sshHosts {
-					if sshHost == host {
-						// 从SSH配置文件创建客户端
-						client, err = ssh.NewClientFromSSHConfig(host)
-						if err != nil {
-							return fmt.Errorf("failed to create client from SSH config: %w", err)
-						}
-						break
-					}
-				}
-			}
+			_, sshErr := parser.GetHost(host)
+			if sshErr == nil {
+				// 从SSH配置文件创建客户端，使用命令行参数覆盖
+				overrideConfig := &ssh.Config{
+					Host: host,
 
-			// 如果不是SSH配置文件中的主机，使用传统方式
-			if client == nil {
+					Username: user,
+					KeyPath:  keyPath,
+					Password: password,
+					Timeout:  time.Duration(timeout) * time.Second,
+				}
+				// 只有当用户显式提供了-p参数时才覆盖端口
+				if port != "22" {
+					overrideConfig.Port = port
+				}
+				client, err = ssh.NewClientFromSSHConfig(host, overrideConfig)
+				if err != nil {
+					return fmt.Errorf("failed to create client from SSH config: %w", err)
+				}
+			} else {
+				// 如果不是SSH配置文件中的主机，使用传统方式
 				// Parse host if it contains user@host format
 				if strings.Contains(host, "@") {
 					parts := strings.Split(host, "@")
@@ -394,6 +422,11 @@ func newForwardCmd() *cobra.Command {
 						user = parts[0]
 						host = parts[1]
 					}
+				}
+
+				// 检查必需参数
+				if user == "" {
+					return fmt.Errorf("username is required when host is not in SSH config file. Use -u flag or user@host format")
 				}
 
 				// Create SSH config
@@ -408,8 +441,6 @@ func newForwardCmd() *cobra.Command {
 
 				client = ssh.NewClient(sshConfig)
 			}
-
-			// 获取SSH配置信息
 			sshConfig := client.GetConfig()
 			fmt.Printf("Connecting to %s@%s:%s...\n", sshConfig.Username, sshConfig.Host, sshConfig.Port)
 			if err := client.Connect(); err != nil {

@@ -33,7 +33,7 @@ func NewClient(config *Config) *Client {
 }
 
 // NewClientFromSSHConfig 从SSH配置文件创建客户端
-func NewClientFromSSHConfig(hostName string) (*Client, error) {
+func NewClientFromSSHConfig(hostName string, overrideConfig *Config) (*Client, error) {
 	parser := NewSSHConfigParser()
 	sshHostConfig, err := parser.GetHost(hostName)
 	if err != nil {
@@ -41,6 +41,26 @@ func NewClientFromSSHConfig(hostName string) (*Client, error) {
 	}
 
 	config := sshHostConfig.GetHostConfigForSSH()
+
+	// 使用命令行参数覆盖配置文件中的设置
+	if overrideConfig != nil {
+		if overrideConfig.Username != "" {
+			config.Username = overrideConfig.Username
+		}
+		if overrideConfig.Port != "" {
+			config.Port = overrideConfig.Port
+		}
+		if overrideConfig.KeyPath != "" {
+			config.KeyPath = overrideConfig.KeyPath
+		}
+		if overrideConfig.Password != "" {
+			config.Password = overrideConfig.Password
+		}
+		if overrideConfig.Timeout > 0 {
+			config.Timeout = overrideConfig.Timeout
+		}
+	}
+
 	return NewClient(config), nil
 }
 
@@ -66,7 +86,15 @@ func (c *Client) Connect() error {
 	}
 
 	address := net.JoinHostPort(c.config.Host, c.config.Port)
-	fmt.Printf("Attempting to connect to %s with timeout %v\n", address, c.config.Timeout)
+	fmt.Printf("Attempting to connect to %s as user '%s' with timeout %v\n", address, c.config.Username, c.config.Timeout)
+
+	// 显示使用的认证方法
+	if c.config.Password != "" {
+		fmt.Printf("Using password authentication (password provided)\n")
+	}
+	if c.config.KeyPath != "" {
+		fmt.Printf("Using private key: %s\n", c.config.KeyPath)
+	}
 
 	// 先测试TCP连接
 	tcpConn, tcpErr := net.DialTimeout("tcp", address, c.config.Timeout)
@@ -82,6 +110,7 @@ func (c *Client) Connect() error {
 	}
 
 	c.client = client
+	fmt.Println("SSH connection established successfully")
 	return nil
 }
 
@@ -138,24 +167,47 @@ func (c *Client) NewSession() (*ssh.Session, error) {
 func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 	var authMethods []ssh.AuthMethod
 
+	// 如果提供了密码，优先尝试密码认证
+	if c.config.Password != "" {
+		authMethods = append(authMethods, ssh.Password(c.config.Password))
+		fmt.Printf("Added password authentication method\n")
+	}
+
 	// 尝试 SSH agent
 	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
 		authMethods = append(authMethods, ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers))
+		fmt.Printf("Added SSH agent authentication method\n")
 	}
 
-	// 首先尝试配置文件中指定的私钥文件
+	// 尝试配置文件中指定的私钥文件
 	if c.config.KeyPath != "" {
-		key, err := os.ReadFile(c.config.KeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read private key from config: %w", err)
+		if _, err := os.Stat(c.config.KeyPath); err == nil {
+			key, err := os.ReadFile(c.config.KeyPath)
+			if err != nil {
+				fmt.Printf("Warning: failed to read private key from config: %v\n", err)
+			} else {
+				signer, err := ssh.ParsePrivateKey(key)
+				if err != nil {
+					// 私钥可能有密码保护，尝试使用密码解析
+					if c.config.Password != "" {
+						signer, err := ssh.ParsePrivateKeyWithPassphrase(key, []byte(c.config.Password))
+						if err == nil {
+							authMethods = append(authMethods, ssh.PublicKeys(signer))
+							fmt.Printf("Added private key authentication (with passphrase) from config: %s\n", c.config.KeyPath)
+						} else {
+							fmt.Printf("Warning: failed to parse private key (even with passphrase): %v\n", err)
+						}
+					} else {
+						fmt.Printf("Warning: failed to parse private key (may be passphrase protected): %v\n", err)
+					}
+				} else {
+					authMethods = append(authMethods, ssh.PublicKeys(signer))
+					fmt.Printf("Added private key authentication from config: %s\n", c.config.KeyPath)
+				}
+			}
+		} else {
+			fmt.Printf("Warning: private key file not found: %s\n", c.config.KeyPath)
 		}
-
-		signer, err := ssh.ParsePrivateKey(key)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse private key from config: %w", err)
-		}
-
-		authMethods = append(authMethods, ssh.PublicKeys(signer))
 	}
 
 	// 尝试默认的私钥位置
@@ -180,20 +232,17 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 				}
 
 				authMethods = append(authMethods, ssh.PublicKeys(signer))
+				fmt.Printf("Added default private key authentication: %s\n", keyPath)
 				break
 			}
 		}
-	}
-
-	// 尝试密码认证
-	if c.config.Password != "" {
-		authMethods = append(authMethods, ssh.Password(c.config.Password))
 	}
 
 	if len(authMethods) == 0 {
 		return nil, fmt.Errorf("no authentication methods available")
 	}
 
+	fmt.Printf("Total authentication methods: %d\n", len(authMethods))
 	return authMethods, nil
 }
 
