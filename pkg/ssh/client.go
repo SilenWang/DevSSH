@@ -33,7 +33,7 @@ func NewClient(config *Config) *Client {
 }
 
 // NewClientFromSSHConfig 从SSH配置文件创建客户端
-func NewClientFromSSHConfig(hostName string) (*Client, error) {
+func NewClientFromSSHConfig(hostName string, overrideConfig *Config) (*Client, error) {
 	parser := NewSSHConfigParser()
 	sshHostConfig, err := parser.GetHost(hostName)
 	if err != nil {
@@ -41,6 +41,26 @@ func NewClientFromSSHConfig(hostName string) (*Client, error) {
 	}
 
 	config := sshHostConfig.GetHostConfigForSSH()
+
+	// 使用命令行参数覆盖配置文件中的设置
+	if overrideConfig != nil {
+		if overrideConfig.Username != "" {
+			config.Username = overrideConfig.Username
+		}
+		if overrideConfig.Port != "" {
+			config.Port = overrideConfig.Port
+		}
+		if overrideConfig.KeyPath != "" {
+			config.KeyPath = overrideConfig.KeyPath
+		}
+		if overrideConfig.Password != "" {
+			config.Password = overrideConfig.Password
+		}
+		if overrideConfig.Timeout > 0 {
+			config.Timeout = overrideConfig.Timeout
+		}
+	}
+
 	return NewClient(config), nil
 }
 
