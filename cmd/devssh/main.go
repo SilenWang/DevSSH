@@ -75,12 +75,16 @@ func newConnectCmd() *cobra.Command {
 			if sshErr == nil {
 				// 从SSH配置文件创建客户端，使用命令行参数覆盖
 				overrideConfig := &ssh.Config{
-					Host:     host,
-					Port:     port,
+					Host: host,
+
 					Username: user,
 					KeyPath:  keyPath,
 					Password: password,
 					Timeout:  time.Duration(timeout) * time.Second,
+				}
+				// 只有当用户显式提供了-p参数时才覆盖端口
+				if port != "22" {
+					overrideConfig.Port = port
 				}
 				client, err = ssh.NewClientFromSSHConfig(host, overrideConfig)
 				if err != nil {
@@ -271,12 +275,16 @@ func newInstallCmd() *cobra.Command {
 			if sshErr == nil {
 				// 从SSH配置文件创建客户端，使用命令行参数覆盖
 				overrideConfig := &ssh.Config{
-					Host:     host,
-					Port:     port,
+					Host: host,
+
 					Username: user,
 					KeyPath:  keyPath,
 					Password: password,
 					Timeout:  time.Duration(timeout) * time.Second,
+				}
+				// 只有当用户显式提供了-p参数时才覆盖端口
+				if port != "22" {
+					overrideConfig.Port = port
 				}
 				client, err = ssh.NewClientFromSSHConfig(host, overrideConfig)
 				if err != nil {
@@ -390,12 +398,16 @@ func newForwardCmd() *cobra.Command {
 			if sshErr == nil {
 				// 从SSH配置文件创建客户端，使用命令行参数覆盖
 				overrideConfig := &ssh.Config{
-					Host:     host,
-					Port:     port,
+					Host: host,
+
 					Username: user,
 					KeyPath:  keyPath,
 					Password: password,
 					Timeout:  time.Duration(timeout) * time.Second,
+				}
+				// 只有当用户显式提供了-p参数时才覆盖端口
+				if port != "22" {
+					overrideConfig.Port = port
 				}
 				client, err = ssh.NewClientFromSSHConfig(host, overrideConfig)
 				if err != nil {
