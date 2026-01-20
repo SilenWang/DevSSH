@@ -93,10 +93,13 @@ func (p *SSHConfigParser) Parse() (map[string]*SSHHostConfig, error) {
 
 		switch key {
 		case "host":
-			// 保存上一个主机的配置
+			// 保存上一个主机的配置（过滤特殊主机）
 			if currentHost != nil {
 				for _, hostName := range currentHostNames {
-					hosts[hostName] = currentHost
+					// 跳过特殊主机模式
+					if !isSpecialHostPattern(hostName) {
+						hosts[hostName] = currentHost
+					}
 				}
 			}
 
@@ -153,10 +156,13 @@ func (p *SSHConfigParser) Parse() (map[string]*SSHHostConfig, error) {
 		}
 	}
 
-	// 保存最后一个主机的配置
+	// 保存最后一个主机的配置（过滤特殊主机）
 	if currentHost != nil {
 		for _, hostName := range currentHostNames {
-			hosts[hostName] = currentHost
+			// 跳过特殊主机模式
+			if !isSpecialHostPattern(hostName) {
+				hosts[hostName] = currentHost
+			}
 		}
 	}
 
@@ -169,6 +175,11 @@ func (p *SSHConfigParser) Parse() (map[string]*SSHHostConfig, error) {
 
 // GetHost 获取指定主机的配置
 func (p *SSHConfigParser) GetHost(hostName string) (*SSHHostConfig, error) {
+	// 首先检查是否是特殊主机模式
+	if isSpecialHostPattern(hostName) {
+		return nil, fmt.Errorf("host %s is a special pattern (contains wildcards) and cannot be used for direct connection", hostName)
+	}
+
 	hosts, err := p.Parse()
 	if err != nil {
 		return nil, err
@@ -194,6 +205,28 @@ func (p *SSHConfigParser) ListHosts() ([]string, error) {
 	}
 
 	return hostNames, nil
+}
+
+// isSpecialHostPattern 检查是否是特殊主机模式
+// 特殊模式包括：*、?、! 以及包含这些通配符的模式
+func isSpecialHostPattern(hostName string) bool {
+	// 检查是否包含通配符
+	if strings.ContainsAny(hostName, "*?!") {
+		return true
+	}
+
+	// 检查是否是单个字符的匹配模式
+	// 例如：Host ? 或 Host ???
+	if len(hostName) == 1 && hostName == "?" {
+		return true
+	}
+
+	// 检查是否以!开头（排除模式）
+	if strings.HasPrefix(hostName, "!") {
+		return true
+	}
+
+	return false
 }
 
 // GetHostConfigForSSH 将SSHHostConfig转换为SSH Config
