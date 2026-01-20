@@ -91,6 +91,11 @@ func newConnectCmd() *cobra.Command {
 					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
 			} else {
+				// 检查是否是特殊主机模式的错误
+				if strings.Contains(sshErr.Error(), "is a special pattern") {
+					return fmt.Errorf("cannot connect to %s: %v", host, sshErr)
+				}
+
 				// 如果不是SSH配置文件中的主机，使用传统方式
 				// Parse host if it contains user@host format
 				if strings.Contains(host, "@") {
@@ -291,6 +296,11 @@ func newInstallCmd() *cobra.Command {
 					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
 			} else {
+				// 检查是否是特殊主机模式的错误
+				if strings.Contains(sshErr.Error(), "is a special pattern") {
+					return fmt.Errorf("cannot connect to %s: %v", host, sshErr)
+				}
+
 				// 如果不是SSH配置文件中的主机，使用传统方式
 				// Parse host if it contains user@host format
 				if strings.Contains(host, "@") {
@@ -414,6 +424,11 @@ func newForwardCmd() *cobra.Command {
 					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
 			} else {
+				// 检查是否是特殊主机模式的错误
+				if strings.Contains(sshErr.Error(), "is a special pattern") {
+					return fmt.Errorf("cannot connect to %s: %v", host, sshErr)
+				}
+
 				// 如果不是SSH配置文件中的主机，使用传统方式
 				// Parse host if it contains user@host format
 				if strings.Contains(host, "@") {
