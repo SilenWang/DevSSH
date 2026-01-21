@@ -204,7 +204,8 @@ func newConnectCmd() *cobra.Command {
 			}
 
 			// Create port forwards
-			if err := tunnel.CreatePortForwards(client, forwardConfigs, tunnelManager); err != nil {
+			portResults, err := tunnel.CreatePortForwards(client, forwardConfigs, tunnelManager)
+			if err != nil {
 				return fmt.Errorf("failed to create port forwards: %w", err)
 			}
 
@@ -215,7 +216,32 @@ func newConnectCmd() *cobra.Command {
 				fmt.Printf("  %s: localhost:%d -> remote:%d\n", name, info.LocalPort, info.RemotePort)
 			}
 
-			fmt.Printf("\n%s is now accessible at http://localhost:%d\n", ideType, defaultPort)
+			// 查找IDE端口的实际转发端口
+			actualIDEPort := defaultPort
+			foundInResults := false
+
+			// 首先从portResults中查找
+			for _, result := range portResults {
+				if result.RemotePort == defaultPort {
+					actualIDEPort = result.ActualPort
+					foundInResults = true
+					break
+				}
+			}
+
+			// 如果没有在portResults中找到，从隧道管理器中查找
+			if !foundInResults {
+				tunnels := tunnelManager.ListTunnels()
+				for _, info := range tunnels {
+					// 查找转发到IDE远程端口的隧道
+					if info.RemotePort == defaultPort {
+						actualIDEPort = info.LocalPort
+						break
+					}
+				}
+			}
+
+			fmt.Printf("\n%s is now accessible at http://localhost:%d\n", ideType, actualIDEPort)
 			fmt.Println("\nPress Ctrl+C to stop...")
 
 			// Wait for interrupt
@@ -371,7 +397,8 @@ func newForwardCmd() *cobra.Command {
 			}
 
 			// Create port forwards
-			if err := tunnel.CreatePortForwards(client, forwardConfigs, tunnelManager); err != nil {
+			_, err = tunnel.CreatePortForwards(client, forwardConfigs, tunnelManager)
+			if err != nil {
 				return fmt.Errorf("failed to create port forwards: %w", err)
 			}
 
