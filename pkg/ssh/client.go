@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/loft-sh/log"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -24,16 +26,34 @@ type Config struct {
 type Client struct {
 	config *Config
 	client *ssh.Client
+	logger log.Logger
 }
 
 func NewClient(config *Config) *Client {
+	// 创建一个不输出任何内容的logger
+	logger := log.NewStreamLogger(io.Discard, io.Discard, logrus.InfoLevel)
 	return &Client{
 		config: config,
+		logger: logger,
+	}
+}
+
+func NewClientWithLogger(config *Config, logger log.Logger) *Client {
+	return &Client{
+		config: config,
+		logger: logger,
 	}
 }
 
 // NewClientFromSSHConfig 从SSH配置文件创建客户端
 func NewClientFromSSHConfig(hostName string, overrideConfig *Config) (*Client, error) {
+	// 创建一个不输出任何内容的logger
+	logger := log.NewStreamLogger(io.Discard, io.Discard, logrus.InfoLevel)
+	return NewClientFromSSHConfigWithLogger(hostName, overrideConfig, logger)
+}
+
+// NewClientFromSSHConfigWithLogger 从SSH配置文件创建客户端（带logger）
+func NewClientFromSSHConfigWithLogger(hostName string, overrideConfig *Config, logger log.Logger) (*Client, error) {
 	parser := NewSSHConfigParser()
 	sshHostConfig, err := parser.GetHost(hostName)
 	if err != nil {
@@ -61,7 +81,7 @@ func NewClientFromSSHConfig(hostName string, overrideConfig *Config) (*Client, e
 		}
 	}
 
-	return NewClient(config), nil
+	return NewClientWithLogger(config, logger), nil
 }
 
 func (c *Client) Connect() error {
@@ -86,14 +106,14 @@ func (c *Client) Connect() error {
 	}
 
 	address := net.JoinHostPort(c.config.Host, c.config.Port)
-	fmt.Printf("Attempting to connect to %s as user '%s' with timeout %v\n", address, c.config.Username, c.config.Timeout)
+	c.logger.Infof("Attempting to connect to %s as user '%s' with timeout %v", address, c.config.Username, c.config.Timeout)
 
 	// 显示使用的认证方法
 	if c.config.Password != "" {
-		fmt.Printf("Using password authentication (password provided)\n")
+		c.logger.Infof("Using password authentication (password provided)")
 	}
 	if c.config.KeyPath != "" {
-		fmt.Printf("Using private key: %s\n", c.config.KeyPath)
+		c.logger.Infof("Using private key: %s", c.config.KeyPath)
 	}
 
 	// 先测试TCP连接
@@ -102,7 +122,7 @@ func (c *Client) Connect() error {
 		return fmt.Errorf("TCP connection failed: %w", tcpErr)
 	}
 	tcpConn.Close()
-	fmt.Println("TCP connection successful, attempting SSH handshake...")
+	c.logger.Infof("TCP connection successful, attempting SSH handshake...")
 
 	client, err := ssh.Dial("tcp", address, sshConfig)
 	if err != nil {
@@ -110,7 +130,7 @@ func (c *Client) Connect() error {
 	}
 
 	c.client = client
-	fmt.Println("SSH connection established successfully")
+	c.logger.Infof("SSH connection established successfully")
 	return nil
 }
 
@@ -170,13 +190,13 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 	// 如果提供了密码，优先尝试密码认证
 	if c.config.Password != "" {
 		authMethods = append(authMethods, ssh.Password(c.config.Password))
-		fmt.Printf("Added password authentication method\n")
+		c.logger.Infof("Added password authentication method")
 	}
 
 	// 尝试 SSH agent
 	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
 		authMethods = append(authMethods, ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers))
-		fmt.Printf("Added SSH agent authentication method\n")
+		c.logger.Infof("Added SSH agent authentication method")
 	}
 
 	// 尝试配置文件中指定的私钥文件
@@ -184,7 +204,7 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 		if _, err := os.Stat(c.config.KeyPath); err == nil {
 			key, err := os.ReadFile(c.config.KeyPath)
 			if err != nil {
-				fmt.Printf("Warning: failed to read private key from config: %v\n", err)
+				c.logger.Warnf("Failed to read private key from config: %v", err)
 			} else {
 				signer, err := ssh.ParsePrivateKey(key)
 				if err != nil {
@@ -193,20 +213,20 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 						signer, err := ssh.ParsePrivateKeyWithPassphrase(key, []byte(c.config.Password))
 						if err == nil {
 							authMethods = append(authMethods, ssh.PublicKeys(signer))
-							fmt.Printf("Added private key authentication (with passphrase) from config: %s\n", c.config.KeyPath)
+							c.logger.Infof("Added private key authentication (with passphrase) from config: %s", c.config.KeyPath)
 						} else {
-							fmt.Printf("Warning: failed to parse private key (even with passphrase): %v\n", err)
+							c.logger.Warnf("Failed to parse private key (even with passphrase): %v", err)
 						}
 					} else {
-						fmt.Printf("Warning: failed to parse private key (may be passphrase protected): %v\n", err)
+						c.logger.Warnf("Failed to parse private key (may be passphrase protected): %v", err)
 					}
 				} else {
 					authMethods = append(authMethods, ssh.PublicKeys(signer))
-					fmt.Printf("Added private key authentication from config: %s\n", c.config.KeyPath)
+					c.logger.Infof("Added private key authentication from config: %s", c.config.KeyPath)
 				}
 			}
 		} else {
-			fmt.Printf("Warning: private key file not found: %s\n", c.config.KeyPath)
+			c.logger.Warnf("Private key file not found: %s", c.config.KeyPath)
 		}
 	}
 
@@ -232,7 +252,7 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 				}
 
 				authMethods = append(authMethods, ssh.PublicKeys(signer))
-				fmt.Printf("Added default private key authentication: %s\n", keyPath)
+				c.logger.Infof("Added default private key authentication: %s", keyPath)
 				break
 			}
 		}
@@ -242,7 +262,7 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 		return nil, fmt.Errorf("no authentication methods available")
 	}
 
-	fmt.Printf("Total authentication methods: %d\n", len(authMethods))
+	c.logger.Infof("Total authentication methods: %d", len(authMethods))
 	return authMethods, nil
 }
 
@@ -252,6 +272,11 @@ func (c *Client) IsConnected() bool {
 
 func (c *Client) GetClient() *ssh.Client {
 	return c.client
+}
+
+// SetLogger 设置logger
+func (c *Client) SetLogger(logger log.Logger) {
+	c.logger = logger
 }
 
 func (c *Client) GetConfig() *Config {
