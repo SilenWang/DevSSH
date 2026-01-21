@@ -2,19 +2,33 @@ package tunnel
 
 import (
 	"fmt"
+	"io"
 	"sync"
 
 	"devssh/pkg/ssh"
+	"github.com/loft-sh/log"
+	"github.com/sirupsen/logrus"
 )
 
 type TunnelManager struct {
 	tunnels map[string]*ssh.Tunnel
 	mu      sync.RWMutex
+	logger  log.Logger
 }
 
 func NewTunnelManager() *TunnelManager {
+	// 创建一个不输出任何内容的logger
+	logger := log.NewStreamLogger(io.Discard, io.Discard, logrus.InfoLevel)
 	return &TunnelManager{
 		tunnels: make(map[string]*ssh.Tunnel),
+		logger:  logger,
+	}
+}
+
+func NewTunnelManagerWithLogger(logger log.Logger) *TunnelManager {
+	return &TunnelManager{
+		tunnels: make(map[string]*ssh.Tunnel),
+		logger:  logger,
 	}
 }
 
@@ -28,7 +42,7 @@ func (m *TunnelManager) CreateTunnel(client *ssh.Client, localPort, remotePort i
 
 	// 记录日志的函数
 	logFunc := func(msg string) {
-		fmt.Println(msg)
+		m.logger.Info(msg)
 	}
 
 	// 查找可用端口
@@ -39,7 +53,7 @@ func (m *TunnelManager) CreateTunnel(client *ssh.Client, localPort, remotePort i
 
 	// 如果端口有变化，记录最终结果
 	if actualPort != localPort {
-		fmt.Printf("Local Port %d was occupied, automatically switch to port %d\n", localPort, actualPort)
+		m.logger.Infof("Local Port %d was occupied, automatically switch to port %d", localPort, actualPort)
 	}
 
 	config := &ssh.TunnelConfig{
@@ -170,7 +184,7 @@ func CreatePortForwards(client *ssh.Client, configs []ForwardConfig, manager *Tu
 				if err != nil {
 					return nil, fmt.Errorf("failed to create auto tunnel for port %d: %w", portInfo.Port, err)
 				}
-				fmt.Printf("Auto-forwarding port %d (%s)\n", portInfo.Port, portInfo.Service)
+				manager.logger.Infof("Auto-forwarding port %d (%s)", portInfo.Port, portInfo.Service)
 
 				results = append(results, PortForwardResult{
 					Name:       tunnelName,
@@ -185,7 +199,7 @@ func CreatePortForwards(client *ssh.Client, configs []ForwardConfig, manager *Tu
 			if err != nil {
 				return nil, fmt.Errorf("failed to create tunnel for port %d->%d: %w", config.LocalPort, config.RemotePort, err)
 			}
-			fmt.Printf("Forwarding local port %d to remote port %d\n", config.LocalPort, config.RemotePort)
+			manager.logger.Infof("Forwarding local port %d to remote port %d", config.LocalPort, config.RemotePort)
 
 			results = append(results, PortForwardResult{
 				Name:       name,

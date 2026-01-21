@@ -12,22 +12,47 @@ import (
 	"time"
 
 	"devssh/pkg/ide"
+	"devssh/pkg/logging"
 	"devssh/pkg/ssh"
 	"devssh/pkg/tunnel"
 
+	"github.com/loft-sh/log"
 	"github.com/spf13/cobra"
 )
 
 var (
 	version = "0.1.0"
+	logger  log.Logger
 )
 
 func main() {
+	// 初始化日志系统（默认使用info级别）
+	logger = logging.InitDefault()
+
 	rootCmd := &cobra.Command{
 		Use:     "devssh",
 		Short:   "DevSSH - SSH-based remote development environment setup",
 		Version: version,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// 处理全局标志
+			verbose, _ := cmd.Flags().GetBool("verbose")
+			quiet, _ := cmd.Flags().GetBool("quiet")
+
+			// 根据标志设置日志级别
+			if verbose {
+				logger = logging.InitDebug()
+			} else if quiet {
+				logger = logging.InitQuiet()
+			}
+
+			// 设置全局logger
+			logging.SetGlobalLogger(logger)
+		},
 	}
+
+	// 添加全局标志
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "启用详细输出（调试级别）")
+	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "安静模式（只显示错误）")
 
 	// 禁用自动生成的completion命令
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
@@ -39,7 +64,7 @@ func main() {
 	)
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		logger.Errorf("%v", err)
 		os.Exit(1)
 	}
 }
@@ -61,6 +86,8 @@ func newConnectCmd() *cobra.Command {
 		Short: "Connect to remote host and setup development environment",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 获取logger
+			logger := logging.GetGlobalLogger()
 			host := args[0]
 
 			var client *ssh.Client
@@ -83,7 +110,7 @@ func newConnectCmd() *cobra.Command {
 				if port != "22" {
 					overrideConfig.Port = port
 				}
-				client, err = ssh.NewClientFromSSHConfig(host, overrideConfig)
+				client, err = ssh.NewClientFromSSHConfigWithLogger(host, overrideConfig, logger)
 				if err != nil {
 					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
@@ -118,23 +145,23 @@ func newConnectCmd() *cobra.Command {
 					Timeout:  time.Duration(timeout) * time.Second,
 				}
 
-				client = ssh.NewClient(sshConfig)
+				client = ssh.NewClientWithLogger(sshConfig, logger)
 			}
 
 			// 获取SSH配置信息
 			sshConfig := client.GetConfig()
-			fmt.Printf("Connecting to %s@%s:%s...\n", sshConfig.Username, sshConfig.Host, sshConfig.Port)
+			logger.Infof("Connecting to %s@%s:%s...", sshConfig.Username, sshConfig.Host, sshConfig.Port)
 			if err := client.Connect(); err != nil {
 				return fmt.Errorf("failed to connect: %w", err)
 			}
 			defer client.Close()
-			fmt.Println("Connected successfully")
+			logger.Infof("Connected successfully")
 
-			// Create IDE installer
-			ideInstaller := ide.NewInstaller(client, ide.IDE(ideType))
+			// Create IDE installer with logger
+			ideInstaller := ide.NewInstallerWithOptions(client, ide.IDE(ideType), nil, logger)
 
 			// Check if IDE is installed
-			fmt.Printf("Checking if %s is installed...\n", ideType)
+			logger.Infof("Checking if %s is installed...", ideType)
 			installed, err := ideInstaller.IsInstalled()
 			if err != nil {
 				return fmt.Errorf("failed to check IDE installation: %w", err)
@@ -142,25 +169,25 @@ func newConnectCmd() *cobra.Command {
 
 			// Install IDE if not installed
 			if !installed {
-				fmt.Printf("%s is not installed. Installing...\n", ideType)
+				logger.Infof("%s is not installed. Installing...", ideType)
 				if err := ideInstaller.Install(); err != nil {
 					return fmt.Errorf("failed to install IDE: %w", err)
 				}
-				fmt.Printf("%s installed successfully\n", ideType)
+				logger.Infof("%s installed successfully", ideType)
 			} else {
-				fmt.Printf("%s is already installed\n", ideType)
+				logger.Infof("%s is already installed", ideType)
 			}
 
 			// Start IDE
 			defaultPort := ideInstaller.GetDefaultPort()
-			fmt.Printf("Starting %s on port %d...\n", ideType, defaultPort)
+			logger.Infof("Starting %s on port %d...", ideType, defaultPort)
 			if err := ideInstaller.Start(defaultPort); err != nil {
 				return fmt.Errorf("failed to start IDE: %w", err)
 			}
-			fmt.Printf("%s started on port %d\n", ideType, defaultPort)
+			logger.Infof("%s started on port %d", ideType, defaultPort)
 
 			// Create tunnel manager
-			tunnelManager := tunnel.NewTunnelManager()
+			tunnelManager := tunnel.NewTunnelManagerWithLogger(logger)
 
 			// Parse forward ports
 			var forwardConfigs []tunnel.ForwardConfig
@@ -211,9 +238,9 @@ func newConnectCmd() *cobra.Command {
 
 			// List active tunnels
 			tunnels := tunnelManager.ListTunnels()
-			fmt.Println("\nActive port forwards:")
+			logger.Infof("Active port forwards:")
 			for name, info := range tunnels {
-				fmt.Printf("  %s: localhost:%d -> remote:%d\n", name, info.LocalPort, info.RemotePort)
+				logger.Infof("  %s: localhost:%d -> remote:%d", name, info.LocalPort, info.RemotePort)
 			}
 
 			// 查找IDE端口的实际转发端口
@@ -241,13 +268,13 @@ func newConnectCmd() *cobra.Command {
 				}
 			}
 
-			fmt.Printf("\n%s is now accessible at http://localhost:%d\n", ideType, actualIDEPort)
-			fmt.Println("\nPress Ctrl+C to stop...")
+			logger.Infof("%s is now accessible at http://localhost:%d", ideType, actualIDEPort)
+			logger.Infof("Press Ctrl+C to stop...")
 
 			// Wait for interrupt
 			select {
 			case <-cmd.Context().Done():
-				fmt.Println("\nStopping...")
+				logger.Infof("Stopping...")
 			}
 
 			return nil
@@ -282,6 +309,8 @@ func newForwardCmd() *cobra.Command {
 		Short: "Forward ports from remote host to local machine",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 获取logger
+			logger := logging.GetGlobalLogger()
 			host := args[0]
 
 			// Parse host if it contains user@host format
@@ -313,7 +342,7 @@ func newForwardCmd() *cobra.Command {
 				if port != "22" {
 					overrideConfig.Port = port
 				}
-				client, err = ssh.NewClientFromSSHConfig(host, overrideConfig)
+				client, err = ssh.NewClientFromSSHConfigWithLogger(host, overrideConfig, logger)
 				if err != nil {
 					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
@@ -348,18 +377,18 @@ func newForwardCmd() *cobra.Command {
 					Timeout:  time.Duration(timeout) * time.Second,
 				}
 
-				client = ssh.NewClient(sshConfig)
+				client = ssh.NewClientWithLogger(sshConfig, logger)
 			}
 			sshConfig := client.GetConfig()
-			fmt.Printf("Connecting to %s@%s:%s...\n", sshConfig.Username, sshConfig.Host, sshConfig.Port)
+			logger.Infof("Connecting to %s@%s:%s...", sshConfig.Username, sshConfig.Host, sshConfig.Port)
 			if err := client.Connect(); err != nil {
 				return fmt.Errorf("failed to connect: %w", err)
 			}
 			defer client.Close()
-			fmt.Println("Connected successfully")
+			logger.Infof("Connected successfully")
 
 			// Create tunnel manager
-			tunnelManager := tunnel.NewTunnelManager()
+			tunnelManager := tunnel.NewTunnelManagerWithLogger(logger)
 
 			// Parse forward ports
 			var forwardConfigs []tunnel.ForwardConfig
@@ -404,17 +433,17 @@ func newForwardCmd() *cobra.Command {
 
 			// List active tunnels
 			tunnels := tunnelManager.ListTunnels()
-			fmt.Println("\nActive port forwards:")
+			logger.Infof("Active port forwards:")
 			for name, info := range tunnels {
-				fmt.Printf("  %s: localhost:%d -> remote:%d\n", name, info.LocalPort, info.RemotePort)
+				logger.Infof("  %s: localhost:%d -> remote:%d", name, info.LocalPort, info.RemotePort)
 			}
 
-			fmt.Println("\nPress Ctrl+C to stop...")
+			logger.Infof("Press Ctrl+C to stop...")
 
 			// Wait for interrupt
 			select {
 			case <-cmd.Context().Done():
-				fmt.Println("\nStopping...")
+				logger.Infof("Stopping...")
 			}
 
 			return nil
@@ -437,6 +466,9 @@ func newListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List hosts from SSH config file",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 获取logger
+			logger := logging.GetGlobalLogger()
+
 			parser := ssh.NewSSHConfigParser()
 			hosts, err := parser.ListHosts()
 			if err != nil {
@@ -444,13 +476,13 @@ func newListCmd() *cobra.Command {
 			}
 
 			if len(hosts) == 0 {
-				fmt.Println("No hosts found in SSH config file")
+				logger.Infof("No hosts found in SSH config file")
 				return nil
 			}
 
-			fmt.Println("Hosts from SSH config file:")
+			logger.Infof("Hosts from SSH config file:")
 			for _, host := range hosts {
-				fmt.Printf("  %s\n", host)
+				logger.Infof("  %s", host)
 			}
 
 			return nil
