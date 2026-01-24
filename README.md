@@ -20,10 +20,14 @@ This project was developed using [opencode](https://github.com/anomalyco/opencod
 
 If you have Go 1.21+ installed:
 ```bash
-git clone https://github.com/yourusername/devssh.git
-cd devssh
+git clone https://github.com/SilenWang/DevSSH.git
+cd DevSSH
 go build -o devssh cmd/devssh/main.go 
 ```
+
+## Build conda package
+
+The recipe for building a Conda package for DevSSH with `rattler-build` is already configured in the source code. Simply run pixi build to create the package, then install it globally with pixi global install.
 
 ## License
 
