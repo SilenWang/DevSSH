@@ -2,4 +2,4 @@
 # pixi environments
 .pixi/*
 !.pixi/config.toml
-devssh
+bin/devssh

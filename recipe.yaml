@@ -1,0 +1,25 @@
+package:
+  name: devssh
+  version: 0.1.1
+
+source:
+  path: .
+  use_gitignore: true 
+
+build:
+  number: 0
+  script: |
+    go build -o "$PREFIX/bin/devssh" cmd/devssh/main.go
+
+requirements:
+  build:
+    - ${{ compiler('go-nocgo') }}
+    - patchelf
+
+about:
+  homepage: https://github.com/SilenWang/DevSSH
+  license: MPL-2.0
+  summary: 'A CLI tool to quickly set up remote development tools over SSH'
+  description: |
+    A CLI tool to quickly set up remote development tools over SSH.
+  repository: https://github.com/SilenWang/DevSSH
