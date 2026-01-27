@@ -152,14 +152,14 @@ func (s *SSHOpenVSCodeServer) extractOnRemote(remotePath string) error {
 #!/bin/bash
 set -e
 
-# 创建目录
+# Create Path
 mkdir -p ~/.openvscode-server
 
-# 解压文件
+# Extract File
 echo "Extracting openvscode-server..."
 tar -xzf ~/openvscode-server.tar.gz -C ~/.openvscode-server --strip-components=1
 
-# 清理临时文件
+# Clean temp file
 rm -f ~/openvscode-server.tar.gz
 
 if [ $? -eq 0 ]; then
