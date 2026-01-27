@@ -51,9 +51,8 @@ func main() {
 	}
 
 	// 添加全局标志
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "启用详细输出（调试级别）")
-	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "安静模式（只显示错误）")
-
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output (debug level)")
+	rootCmd.PersistentFlags().BoolP("quiet", "q", false, "Quiet mode (only errors displayed)")
 	// 禁用自动生成的completion命令
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
