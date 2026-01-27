@@ -26,8 +26,11 @@ var (
 )
 
 func main() {
+
 	// 初始化日志系统（默认使用info级别）
 	logger = logging.InitDefault()
+
+	cobra.EnableCommandSorting = false
 
 	rootCmd := &cobra.Command{
 		Use:     "devssh",
@@ -57,7 +60,7 @@ func main() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
 	rootCmd.AddCommand(
-		newConnectCmd(),
+		newUpCmd(),
 		newForwardCmd(),
 		newListCmd(),
 	)
@@ -68,7 +71,7 @@ func main() {
 	}
 }
 
-func newConnectCmd() *cobra.Command {
+func newUpCmd() *cobra.Command {
 	var (
 		user     string
 		port     string
@@ -81,7 +84,7 @@ func newConnectCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "connect [host]",
+		Use:   "up [host]",
 		Short: "Connect to remote host and setup development environment",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
