@@ -108,6 +108,10 @@ func (r *Runner) Start(port int) error {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start: %w", err)
 	}
@@ -126,13 +130,14 @@ func (r *Runner) Stop() error {
 		return nil
 	}
 
-	proc, err := os.FindProcess(r.serverPID)
+	pgid, err := syscall.Getpgid(r.serverPID)
 	if err != nil {
+		r.removePID()
 		return nil
 	}
 
-	if err := proc.Signal(syscall.SIGTERM); err != nil {
-		proc.Kill()
+	if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+		syscall.Kill(-pgid, syscall.SIGKILL)
 	}
 
 	time.Sleep(time.Second)
