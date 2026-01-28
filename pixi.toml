@@ -2,11 +2,23 @@
 authors = ["Sylens Wong <qiumin14@163.com>"]
 channels = ["conda-forge"]
 name = "DevSSH"
-platforms = ["linux-aarch64"]
-version = "0.1.0"
+platforms = ["linux-aarch64", "linux-64"]
+version = "0.1.1"
+preview = ["pixi-build"]
 
 [tasks]
+build = {cmd = "go build -o bin/devssh cmd/devssh/main.go", cwd = "./"}
+
+[activation.env]
+CGO_ENABLED = "0"
 
 [dependencies]
 go = ">=1.25.4,<2"
-gcc_linux-aarch64 = ">=14.3.0,<15"
+
+[package]
+name = "DevSSH"
+version = "0.1.2"
+
+[package.build.backend]
+name = "pixi-build-rattler-build"
+version = "0.3.*" 

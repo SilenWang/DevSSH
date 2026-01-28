@@ -2,44 +2,74 @@ package tunnel
 
 import (
 	"fmt"
+	"io"
 	"sync"
 
 	"devssh/pkg/ssh"
+	"github.com/loft-sh/log"
+	"github.com/sirupsen/logrus"
 )
 
 type TunnelManager struct {
 	tunnels map[string]*ssh.Tunnel
 	mu      sync.RWMutex
+	logger  log.Logger
 }
 
 func NewTunnelManager() *TunnelManager {
+	// 创建一个不输出任何内容的logger
+	logger := log.NewStreamLogger(io.Discard, io.Discard, logrus.InfoLevel)
 	return &TunnelManager{
 		tunnels: make(map[string]*ssh.Tunnel),
+		logger:  logger,
 	}
 }
 
-func (m *TunnelManager) CreateTunnel(client *ssh.Client, localPort, remotePort int, name string) error {
+func NewTunnelManagerWithLogger(logger log.Logger) *TunnelManager {
+	return &TunnelManager{
+		tunnels: make(map[string]*ssh.Tunnel),
+		logger:  logger,
+	}
+}
+
+func (m *TunnelManager) CreateTunnel(client *ssh.Client, localPort, remotePort int, name string) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if _, exists := m.tunnels[name]; exists {
-		return fmt.Errorf("tunnel %s already exists", name)
+		return 0, fmt.Errorf("tunnel %s already exists", name)
+	}
+
+	// 记录日志的函数
+	logFunc := func(msg string) {
+		m.logger.Info(msg)
+	}
+
+	// 查找可用端口
+	actualPort, err := FindAvailablePort(localPort, logFunc)
+	if err != nil {
+		return 0, fmt.Errorf("failed to find available port for tunnel %s: %w", name, err)
+	}
+
+	// 如果端口有变化，记录最终结果
+	if actualPort != localPort {
+		m.logger.Infof("Local Port %d was occupied, automatically switch to port %d", localPort, actualPort)
 	}
 
 	config := &ssh.TunnelConfig{
 		LocalHost:  "127.0.0.1",
-		LocalPort:  localPort,
+		LocalPort:  actualPort,
 		RemoteHost: "127.0.0.1",
 		RemotePort: remotePort,
 	}
 
 	tunnel := ssh.NewTunnel(client.GetClient(), config)
 	if err := tunnel.Start(); err != nil {
-		return fmt.Errorf("failed to start tunnel: %w", err)
+		return 0, fmt.Errorf("failed to start tunnel on port %d: %w", actualPort, err)
 	}
 
 	m.tunnels[name] = tunnel
-	return nil
+	return actualPort, nil
 }
 
 func (m *TunnelManager) StopTunnel(name string) error {
@@ -127,7 +157,16 @@ type ForwardConfig struct {
 	AutoDetect bool
 }
 
-func CreatePortForwards(client *ssh.Client, configs []ForwardConfig, manager *TunnelManager) error {
+type PortForwardResult struct {
+	Name       string
+	LocalPort  int
+	RemotePort int
+	ActualPort int
+}
+
+func CreatePortForwards(client *ssh.Client, configs []ForwardConfig, manager *TunnelManager) ([]PortForwardResult, error) {
+	var results []PortForwardResult
+
 	for i, config := range configs {
 		name := fmt.Sprintf("tunnel-%d", i)
 
@@ -136,24 +175,40 @@ func CreatePortForwards(client *ssh.Client, configs []ForwardConfig, manager *Tu
 			scanner := NewPortScanner(client)
 			ports, err := scanner.DetectWebServices()
 			if err != nil {
-				return fmt.Errorf("failed to detect web services: %w", err)
+				return nil, fmt.Errorf("failed to detect web services: %w", err)
 			}
 
 			for _, portInfo := range ports {
 				tunnelName := fmt.Sprintf("auto-%d", portInfo.Port)
-				if err := manager.CreateTunnel(client, portInfo.Port, portInfo.Port, tunnelName); err != nil {
-					return fmt.Errorf("failed to create auto tunnel for port %d: %w", portInfo.Port, err)
+				actualPort, err := manager.CreateTunnel(client, portInfo.Port, portInfo.Port, tunnelName)
+				if err != nil {
+					return nil, fmt.Errorf("failed to create auto tunnel for port %d: %w", portInfo.Port, err)
 				}
-				fmt.Printf("Auto-forwarding port %d (%s)\n", portInfo.Port, portInfo.Service)
+				manager.logger.Infof("Auto-forwarding port %d (%s)", portInfo.Port, portInfo.Service)
+
+				results = append(results, PortForwardResult{
+					Name:       tunnelName,
+					LocalPort:  portInfo.Port,
+					RemotePort: portInfo.Port,
+					ActualPort: actualPort,
+				})
 			}
 		} else {
 			// 手动指定端口转发
-			if err := manager.CreateTunnel(client, config.LocalPort, config.RemotePort, name); err != nil {
-				return fmt.Errorf("failed to create tunnel for port %d->%d: %w", config.LocalPort, config.RemotePort, err)
+			actualPort, err := manager.CreateTunnel(client, config.LocalPort, config.RemotePort, name)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create tunnel for port %d->%d: %w", config.LocalPort, config.RemotePort, err)
 			}
-			fmt.Printf("Forwarding local port %d to remote port %d\n", config.LocalPort, config.RemotePort)
+			manager.logger.Infof("Forwarding local port %d to remote port %d", config.LocalPort, config.RemotePort)
+
+			results = append(results, PortForwardResult{
+				Name:       name,
+				LocalPort:  config.LocalPort,
+				RemotePort: config.RemotePort,
+				ActualPort: actualPort,
+			})
 		}
 	}
 
-	return nil
+	return results, nil
 }

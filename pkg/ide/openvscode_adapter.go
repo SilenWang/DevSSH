@@ -2,8 +2,12 @@ package ide
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"devssh/pkg/download"
 	"devssh/pkg/ssh"
 
 	"github.com/loft-sh/devpod/pkg/config"
@@ -32,7 +36,7 @@ func NewSSHOpenVSCodeServer(sshClient *ssh.Client, values map[string]config.Opti
 
 	// 确保必要的选项有默认值
 	if _, ok := values[openvscode.VersionOption]; !ok {
-		values[openvscode.VersionOption] = config.OptionValue{Value: "v1.84.2"}
+		values[openvscode.VersionOption] = config.OptionValue{Value: "v1.105.1"}
 	}
 	if _, ok := values[openvscode.BindAddressOption]; !ok {
 		values[openvscode.BindAddressOption] = config.OptionValue{Value: ""}
@@ -86,37 +90,22 @@ func (s *SSHOpenVSCodeServer) Install() error {
 		return fmt.Errorf("failed to get release URL: %w", err)
 	}
 
-	// 通过SSH执行安装
-	installScript := fmt.Sprintf(`
-#!/bin/bash
-set -e
-
-echo "Downloading openvscode-server from %s..."
-
-# 创建目录
-mkdir -p ~/.openvscode-server
-
-# 下载并解压
-if command -v curl &> /dev/null; then
-	curl -L "%s" | tar -xz -C ~/.openvscode-server --strip-components=1
-elif command -v wget &> /dev/null; then
-	wget -qO- "%s" | tar -xz -C ~/.openvscode-server --strip-components=1
-else
-	echo "Error: curl or wget is required"
-	exit 1
-fi
-
-if [ $? -eq 0 ]; then
-	echo "openvscode-server installed successfully at ~/.openvscode-server"
-else
-	echo "Failed to install openvscode-server"
-	exit 1
-fi
-`, url, url, url)
-
-	_, err = s.sshClient.RunCommand(installScript)
+	// 本地下载文件
+	localPath, err := s.downloadLocally(url)
 	if err != nil {
-		return fmt.Errorf("failed to install openvscode-server: %w", err)
+		return fmt.Errorf("failed to download locally: %w", err)
+	}
+	defer os.Remove(localPath)
+
+	// 上传到远程服务器
+	remotePath := "~/openvscode-server.tar.gz"
+	if err := s.uploadToRemote(localPath, remotePath); err != nil {
+		return fmt.Errorf("failed to upload to remote: %w", err)
+	}
+
+	// 在远程服务器解压安装
+	if err := s.extractOnRemote(remotePath); err != nil {
+		return fmt.Errorf("failed to extract on remote: %w", err)
 	}
 
 	s.logger.Infof("openvscode-server installed successfully")
@@ -138,6 +127,121 @@ fi
 	}
 
 	return nil
+}
+
+// downloadLocally 本地下载文件
+func (s *SSHOpenVSCodeServer) downloadLocally(url string) (string, error) {
+	cacheDir, err := s.getCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get cache directory: %w", err)
+	}
+
+	downloader := download.NewLocalDownloader(cacheDir, s.logger)
+	return downloader.Download(url)
+}
+
+// uploadToRemote 上传文件到远程服务器
+func (s *SSHOpenVSCodeServer) uploadToRemote(localPath, remotePath string) error {
+	scpClient := ssh.NewSCPClient(s.sshClient)
+	return scpClient.Upload(localPath, remotePath)
+}
+
+// extractOnRemote 在远程服务器解压文件
+func (s *SSHOpenVSCodeServer) extractOnRemote(remotePath string) error {
+	extractScript := `
+#!/bin/bash
+set -e
+
+# Create Path
+mkdir -p ~/.openvscode-server
+
+# Extract File
+echo "Extracting openvscode-server..."
+tar -xzf ~/openvscode-server.tar.gz -C ~/.openvscode-server --strip-components=1
+
+# Clean temp file
+rm -f ~/openvscode-server.tar.gz
+
+if [ $? -eq 0 ]; then
+	echo "openvscode-server extracted successfully"
+else
+	echo "Failed to extract openvscode-server"
+	exit 1
+fi
+`
+
+	_, err := s.sshClient.RunCommand(extractScript)
+	return err
+}
+
+// getCacheDir 获取缓存目录
+func (s *SSHOpenVSCodeServer) getCacheDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	cacheDir := filepath.Join(homeDir, ".cache", "devssh", "openvscode")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create cache directory: %w", err)
+	}
+
+	return cacheDir, nil
+}
+
+// IsProcessRunning 检查openvscode进程是否在运行
+func (s *SSHOpenVSCodeServer) IsProcessRunning(port int) (bool, error) {
+	if !s.sshClient.IsConnected() {
+		return false, fmt.Errorf("SSH client not connected")
+	}
+
+	// 方法1：检查进程命令行（最精确）- 改进版本
+	cmd1 := fmt.Sprintf("ps aux | grep -E 'openvscode.*--port[[:space:]]+%d|openvscode.*--port=%d' | grep -v grep", port, port)
+	output1, err1 := s.sshClient.RunCommand(cmd1)
+	if err1 == nil && strings.TrimSpace(output1) != "" {
+		s.logger.Debugf("Found openvscode process via ps command")
+		return true, nil
+	}
+
+	// 方法2：检查端口占用进程 - 改进版本
+	cmd2 := fmt.Sprintf("lsof -i :%d 2>/dev/null | grep -i openvscode", port)
+	output2, err2 := s.sshClient.RunCommand(cmd2)
+	if err2 == nil && strings.TrimSpace(output2) != "" {
+		s.logger.Debugf("Found openvscode process via lsof command")
+		return true, nil
+	}
+
+	// 方法3：检查进程监听端口 - 改进版本
+	cmd3 := fmt.Sprintf("ss -tulpn 2>/dev/null | grep ':%d' | grep -i openvscode", port)
+	output3, err3 := s.sshClient.RunCommand(cmd3)
+	if err3 == nil && strings.TrimSpace(output3) != "" {
+		s.logger.Debugf("Found openvscode process via ss command")
+		return true, nil
+	}
+
+	// 方法4：检查进程PID文件
+	cmd4 := fmt.Sprintf("test -f /tmp/openvscode-server-%d.pid && ps -p $(cat /tmp/openvscode-server-%d.pid) >/dev/null 2>&1 && echo running", port, port)
+	output4, err4 := s.sshClient.RunCommand(cmd4)
+	if err4 == nil && strings.Contains(output4, "running") {
+		s.logger.Debugf("Found openvscode process via PID file")
+		return true, nil
+	}
+
+	// 方法5：检查网络连接
+	cmd5 := fmt.Sprintf("timeout 1 bash -c 'echo > /dev/tcp/localhost/%d' 2>/dev/null && echo port_open", port)
+	output5, err5 := s.sshClient.RunCommand(cmd5)
+	if err5 == nil && strings.Contains(output5, "port_open") {
+		// 端口开放，检查是否是openvscode
+		cmd5b := fmt.Sprintf("curl -s http://localhost:%d | grep -i 'vscode\\|openvscode' 2>/dev/null || true", port)
+		output5b, _ := s.sshClient.RunCommand(cmd5b)
+		if strings.Contains(strings.ToLower(output5b), "vscode") || strings.Contains(strings.ToLower(output5b), "openvscode") {
+			s.logger.Debugf("Found openvscode process via HTTP check")
+			return true, nil
+		}
+	}
+
+	// 所有检测方法都失败，认为进程不存在
+	return false, nil
 }
 
 // InstallExtensions 安装VSCode扩展
@@ -199,17 +303,85 @@ func (s *SSHOpenVSCodeServer) Start(port int) error {
 		return fmt.Errorf("openvscode-server is not installed")
 	}
 
+	// 严格检查进程是否已在运行
+	running, err := s.IsProcessRunning(port)
+	if err != nil {
+		s.logger.Warnf("Failed to check if process is running: %v", err)
+	} else if running {
+		s.logger.Infof("openvscode-server is already running on port %d, skipping startup", port)
+		return nil
+	}
+
+	// 清理可能存在的旧PID文件
+	cleanupCmd := fmt.Sprintf("rm -f /tmp/openvscode-server-%d.pid", port)
+	s.sshClient.RunCommand(cleanupCmd)
+
 	s.logger.Infof("Starting openvscode-server on port %d...", port)
 
-	// 启动命令
-	cmd := fmt.Sprintf("nohup ~/.openvscode-server/bin/openvscode-server --host 0.0.0.0 --port %d --without-connection-token > /tmp/openvscode.log 2>&1 &", port)
+	// 启动命令，创建PID文件
+	startScript := fmt.Sprintf(`
+#!/bin/bash
+set -e
 
-	output, err := s.sshClient.RunCommand(cmd)
+PORT=%d
+PID_FILE="/tmp/openvscode-server-${PORT}.pid"
+LOG_FILE="/tmp/openvscode-${PORT}.log"
+
+# 再次检查端口是否被占用
+if lsof -i :${PORT} >/dev/null 2>&1; then
+    echo "Port ${PORT} is already in use"
+    exit 1
+fi
+
+# 启动openvscode-server
+~/.openvscode-server/bin/openvscode-server \
+    --host 0.0.0.0 \
+    --port ${PORT} \
+    --without-connection-token \
+    > "${LOG_FILE}" 2>&1 &
+
+SERVER_PID=$!
+
+# 保存PID
+echo ${SERVER_PID} > "${PID_FILE}"
+
+# 等待进程启动
+for i in {1..30}; do
+    if ps -p ${SERVER_PID} >/dev/null 2>&1; then
+        # 检查端口是否开始监听
+        if timeout 1 bash -c "echo > /dev/tcp/localhost/${PORT}" 2>/dev/null; then
+            echo "openvscode-server started successfully on port ${PORT} (PID: ${SERVER_PID})"
+            exit 0
+        fi
+    else
+        echo "Process ${SERVER_PID} died unexpectedly"
+        rm -f "${PID_FILE}"
+        exit 1
+    fi
+    sleep 1
+done
+
+echo "Timeout waiting for openvscode-server to start"
+kill ${SERVER_PID} 2>/dev/null || true
+rm -f "${PID_FILE}"
+exit 1
+`, port)
+
+	output, err := s.sshClient.RunCommand(startScript)
 	if err != nil {
 		return fmt.Errorf("failed to start openvscode-server: %w, output: %s", err, output)
 	}
 
-	s.logger.Infof("openvscode-server started successfully")
+	// 验证进程确实在运行
+	time.Sleep(2 * time.Second)
+	verifyRunning, verifyErr := s.IsProcessRunning(port)
+	if verifyErr != nil {
+		s.logger.Warnf("Failed to verify process startup: %v", verifyErr)
+	} else if !verifyRunning {
+		return fmt.Errorf("openvscode-server failed to start on port %d", port)
+	}
+
+	s.logger.Infof("openvscode-server started successfully on port %d", port)
 	return nil
 }
 
@@ -244,7 +416,7 @@ func (s *SSHOpenVSCodeServer) getReleaseUrl() (string, error) {
 	// 获取版本
 	version := OpenVSCodeOptions.GetValue(s.values, openvscode.VersionOption)
 	if version == "" {
-		version = "v1.84.2" // 默认版本
+		version = "v1.105.1" // 默认版本
 	}
 
 	// 根据架构生成URL（复用DevPod的模板）
