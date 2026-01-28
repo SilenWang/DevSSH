@@ -11,6 +11,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -45,7 +46,7 @@ func NewRunner() (*Runner, error) {
 		workDir:    workDir,
 		logFile:    logFile,
 		binDir:     binDir,
-		serverPath: filepath.Join(binDir, "openvscode-server"),
+		serverPath: filepath.Join(binDir, "bin", "openvscode-server"),
 	}, nil
 }
 
@@ -230,7 +231,22 @@ func (r *Runner) extract(archivePath string) error {
 			return fmt.Errorf("failed to read tar: %w", err)
 		}
 
-		targetPath := filepath.Join(r.binDir, header.Name)
+		name := header.Name
+
+		firstComponent := strings.Split(name, "/")[0]
+
+		if strings.HasPrefix(name, "openvscode-server-") && strings.Contains(name, "/") {
+			parts := strings.SplitN(name, "/", 2)
+			if len(parts) > 1 {
+				name = parts[1]
+			}
+		}
+
+		if name == "" || name == firstComponent {
+			continue
+		}
+
+		targetPath := filepath.Join(r.binDir, name)
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -255,8 +271,16 @@ func (r *Runner) extract(archivePath string) error {
 			outFile.Close()
 		case tar.TypeSymlink:
 			linkTarget := header.Linkname
+
+			if strings.HasPrefix(linkTarget, "openvscode-server-") {
+				parts := strings.SplitN(linkTarget, "/", 2)
+				if len(parts) > 1 {
+					linkTarget = parts[1]
+				}
+			}
+
 			if !filepath.IsAbs(linkTarget) {
-				linkTarget = filepath.Join(filepath.Dir(targetPath), linkTarget)
+				linkTarget = filepath.Join(r.binDir, linkTarget)
 			}
 
 			dir := filepath.Dir(targetPath)
