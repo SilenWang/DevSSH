@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"devssh/pkg/ide"
 	"devssh/pkg/logging"
 	"devssh/pkg/ssh"
 	"devssh/pkg/tunnel"
@@ -24,6 +23,10 @@ var (
 	version = "0.1.2"
 	logger  log.Logger
 )
+
+func GetVersion() string {
+	return version
+}
 
 func main() {
 
@@ -79,6 +82,8 @@ func newUpCmd() *cobra.Command {
 		keyPath  string
 		password string
 		ideType  string
+		idePort  int
+		version  string
 		forwards []string
 		auto     bool
 		timeout  int
@@ -89,18 +94,15 @@ func newUpCmd() *cobra.Command {
 		Short: "Connect to remote host and setup development environment",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 获取logger
 			logger := logging.GetGlobalLogger()
 			host := args[0]
 
 			var client *ssh.Client
 			var err error
 
-			// 检查是否是SSH配置文件中的主机
 			parser := ssh.NewSSHConfigParser()
 			_, sshErr := parser.GetHost(host)
 			if sshErr == nil {
-				// 从SSH配置文件创建客户端，使用命令行参数覆盖
 				overrideConfig := &ssh.Config{
 					Host: host,
 
@@ -109,7 +111,6 @@ func newUpCmd() *cobra.Command {
 					Password: password,
 					Timeout:  time.Duration(timeout) * time.Second,
 				}
-				// 只有当用户显式提供了-p参数时才覆盖端口
 				if port != "22" {
 					overrideConfig.Port = port
 				}
@@ -118,13 +119,10 @@ func newUpCmd() *cobra.Command {
 					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
 			} else {
-				// 检查是否是特殊主机模式的错误
 				if strings.Contains(sshErr.Error(), "is a special pattern") {
 					return fmt.Errorf("cannot connect to %s: %v", host, sshErr)
 				}
 
-				// 如果不是SSH配置文件中的主机，使用传统方式
-				// Parse host if it contains user@host format
 				if strings.Contains(host, "@") {
 					parts := strings.Split(host, "@")
 					if len(parts) == 2 {
@@ -133,12 +131,10 @@ func newUpCmd() *cobra.Command {
 					}
 				}
 
-				// 检查必需参数
 				if user == "" {
 					return fmt.Errorf("username is required when host is not in SSH config file. Use -u flag or user@host format")
 				}
 
-				// Create SSH config
 				sshConfig := &ssh.Config{
 					Host:     host,
 					Port:     port,
@@ -151,7 +147,6 @@ func newUpCmd() *cobra.Command {
 				client = ssh.NewClientWithLogger(sshConfig, logger)
 			}
 
-			// 获取SSH配置信息
 			sshConfig := client.GetConfig()
 			logger.Infof("Connecting to %s@%s:%s...", sshConfig.Username, sshConfig.Host, sshConfig.Port)
 			if err := client.Connect(); err != nil {
@@ -160,127 +155,11 @@ func newUpCmd() *cobra.Command {
 			defer client.Close()
 			logger.Infof("Connected successfully")
 
-			// Create IDE installer with logger
-			ideInstaller := ide.NewInstallerWithOptions(client, ide.IDE(ideType), nil, logger)
-
-			// Check if IDE is installed
-			logger.Infof("Checking if %s is installed...", ideType)
-			installed, err := ideInstaller.IsInstalled()
-			if err != nil {
-				return fmt.Errorf("failed to check IDE installation: %w", err)
+			if idePort == 0 {
+				idePort = 8080
 			}
 
-			// Install IDE if not installed
-			if !installed {
-				logger.Infof("%s is not installed. Installing...", ideType)
-				if err := ideInstaller.Install(); err != nil {
-					return fmt.Errorf("failed to install IDE: %w", err)
-				}
-				logger.Infof("%s installed successfully", ideType)
-			} else {
-				logger.Infof("%s is already installed", ideType)
-			}
-
-			// Start IDE
-			defaultPort := ideInstaller.GetDefaultPort()
-			logger.Infof("Starting %s on port %d...", ideType, defaultPort)
-			if err := ideInstaller.Start(defaultPort); err != nil {
-				return fmt.Errorf("failed to start IDE: %w", err)
-			}
-			logger.Infof("%s started on port %d", ideType, defaultPort)
-
-			// Create tunnel manager
-			tunnelManager := tunnel.NewTunnelManagerWithLogger(logger)
-
-			// Parse forward ports
-			var forwardConfigs []tunnel.ForwardConfig
-			if auto {
-				forwardConfigs = append(forwardConfigs, tunnel.ForwardConfig{AutoDetect: true})
-			} else {
-				for _, forward := range forwards {
-					parts := strings.Split(forward, ":")
-					if len(parts) == 1 {
-						// Single port: forward remote port to same local port
-						port, err := strconv.Atoi(parts[0])
-						if err != nil {
-							return fmt.Errorf("invalid port: %s", parts[0])
-						}
-						forwardConfigs = append(forwardConfigs, tunnel.ForwardConfig{
-							LocalPort:  port,
-							RemotePort: port,
-						})
-					} else if len(parts) == 2 {
-						// Local:Remote port mapping
-						localPort, err := strconv.Atoi(parts[0])
-						if err != nil {
-							return fmt.Errorf("invalid local port: %s", parts[0])
-						}
-						remotePort, err := strconv.Atoi(parts[1])
-						if err != nil {
-							return fmt.Errorf("invalid remote port: %s", parts[1])
-						}
-						forwardConfigs = append(forwardConfigs, tunnel.ForwardConfig{
-							LocalPort:  localPort,
-							RemotePort: remotePort,
-						})
-					}
-				}
-
-				// Always forward IDE port
-				forwardConfigs = append(forwardConfigs, tunnel.ForwardConfig{
-					LocalPort:  defaultPort,
-					RemotePort: defaultPort,
-				})
-			}
-
-			// Create port forwards
-			portResults, err := tunnel.CreatePortForwards(client, forwardConfigs, tunnelManager)
-			if err != nil {
-				return fmt.Errorf("failed to create port forwards: %w", err)
-			}
-
-			// List active tunnels
-			tunnels := tunnelManager.ListTunnels()
-			logger.Infof("Active port forwards:")
-			for name, info := range tunnels {
-				logger.Infof("  %s: localhost:%d -> remote:%d", name, info.LocalPort, info.RemotePort)
-			}
-
-			// 查找IDE端口的实际转发端口
-			actualIDEPort := defaultPort
-			foundInResults := false
-
-			// 首先从portResults中查找
-			for _, result := range portResults {
-				if result.RemotePort == defaultPort {
-					actualIDEPort = result.ActualPort
-					foundInResults = true
-					break
-				}
-			}
-
-			// 如果没有在portResults中找到，从隧道管理器中查找
-			if !foundInResults {
-				tunnels := tunnelManager.ListTunnels()
-				for _, info := range tunnels {
-					// 查找转发到IDE远程端口的隧道
-					if info.RemotePort == defaultPort {
-						actualIDEPort = info.LocalPort
-						break
-					}
-				}
-			}
-
-			logger.Infof("%s is now accessible at http://localhost:%d", ideType, actualIDEPort)
-			logger.Infof("Press Ctrl+C to stop...")
-
-			// Wait for interrupt
-			select {
-			case <-cmd.Context().Done():
-				logger.Infof("Stopping...")
-			}
-
-			return nil
+			return doUpCommand(client, host, ideType, idePort, version, forwards, auto, logger)
 		},
 	}
 
@@ -289,6 +168,8 @@ func newUpCmd() *cobra.Command {
 	cmd.Flags().StringVar(&keyPath, "key", "", "SSH private key path")
 	cmd.Flags().StringVar(&password, "password", "", "SSH password")
 	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server)")
+	cmd.Flags().IntVar(&idePort, "ide-port", 8080, "Port for IDE")
+	cmd.Flags().StringVar(&version, "version", "v1.105.1", "IDE version")
 	cmd.Flags().StringSliceVar(&forwards, "forward", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")

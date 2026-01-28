@@ -15,15 +15,18 @@ func newAgentCmd() *cobra.Command {
 		Long: `Manage VSCode (openvscode-server) installation and running on the current machine.
 
 Commands:
-  install   Download and install openvscode-server
-  start     Start VSCode
-  stop      Stop VSCode
+  install    Download and install openvscode-server
+  start      Start VSCode
+  stop       Stop VSCode
+  uninstall  Uninstall VSCode and clean up
 
 Examples:
   devssh agent install
   devssh agent install --version v1.105.1
+  devssh agent install --local-tar /path/to/openvscode.tar.gz
   devssh agent start --port 8080
   devssh agent stop
+  devssh agent uninstall
 `,
 	}
 
@@ -31,13 +34,17 @@ Examples:
 		newAgentInstallCmd(),
 		newAgentStartCmd(),
 		newAgentStopCmd(),
+		newAgentUninstallCmd(),
 	)
 
 	return cmd
 }
 
 func newAgentInstallCmd() *cobra.Command {
-	var version string
+	var (
+		version  string
+		localTar string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "install",
@@ -57,8 +64,14 @@ If already installed, this command will be skipped.`,
 
 			fmt.Println("Installing VSCode...")
 
-			if err := runner.Install(version); err != nil {
-				return fmt.Errorf("failed to install VSCode: %w", err)
+			if localTar != "" {
+				if err := runner.InstallFromTar(localTar); err != nil {
+					return fmt.Errorf("failed to install VSCode from local tar: %w", err)
+				}
+			} else {
+				if err := runner.Install(version); err != nil {
+					return fmt.Errorf("failed to install VSCode: %w", err)
+				}
 			}
 
 			fmt.Println("VSCode installed successfully")
@@ -67,6 +80,7 @@ If already installed, this command will be skipped.`,
 	}
 
 	cmd.Flags().StringVar(&version, "version", "v1.105.1", "VSCode version to install")
+	cmd.Flags().StringVar(&localTar, "local-tar", "", "Path to local tar.gz file (use this instead of downloading)")
 
 	return cmd
 }
@@ -134,6 +148,35 @@ func newAgentStopCmd() *cobra.Command {
 			}
 
 			fmt.Println("VSCode stopped successfully")
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newAgentUninstallCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Uninstall VSCode and clean up",
+		Long:  `Stop VSCode and remove all installed files.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if !runner.IsInstalled() && !runner.IsRunning() {
+				fmt.Println("VSCode is not installed")
+				return nil
+			}
+
+			fmt.Println("Uninstalling VSCode...")
+
+			if err := runner.Uninstall(); err != nil {
+				return fmt.Errorf("failed to uninstall VSCode: %w", err)
+			}
+
 			return nil
 		},
 	}

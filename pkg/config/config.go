@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"devssh/pkg/ssh"
+)
+
+const (
+	DevSSHDownloadURL = "https://github.com/yourusername/devssh/releases/download/{{version}}/devssh-{{version}}-{{os}}-{{arch}}"
 )
 
 type HostConfig struct {
@@ -210,4 +215,46 @@ func Load() (*Config, error) {
 
 func Save(cfg *Config) error {
 	return cfg.Save()
+}
+
+func GetDevSSHDownloadURL(version, os, arch string) string {
+	url := DevSSHDownloadURL
+	url = strings.Replace(url, "{{version}}", version, 1)
+	url = strings.Replace(url, "{{os}}", os, 1)
+	url = strings.Replace(url, "{{arch}}", arch, 1)
+	return url
+}
+
+func GetLocalOS() string {
+	return getGOOS()
+}
+
+func GetLocalArch() string {
+	return getGOArch()
+}
+
+func getGOOS() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "darwin"
+	case "linux":
+		return "linux"
+	case "windows":
+		return "windows"
+	default:
+		return runtime.GOOS
+	}
+}
+
+func getGOArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "amd64"
+	case "arm64":
+		return "arm64"
+	case "arm":
+		return "arm"
+	default:
+		return runtime.GOARCH
+	}
 }

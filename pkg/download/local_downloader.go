@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/loft-sh/log"
@@ -39,14 +40,47 @@ func (d *LocalDownloader) Download(url string) (string, error) {
 		return cachePath, nil
 	}
 
-	d.logger.Infof("正在下载 openvscode-server...")
+	d.logger.Infof("Downloading...")
 
 	if err := d.downloadFile(url, cachePath); err != nil {
 		return "", fmt.Errorf("failed to download file: %w", err)
 	}
 
-	d.logger.Infof("下载完成: %s", filepath.Base(cachePath))
+	d.logger.Infof("Download complete: %s", filepath.Base(cachePath))
 	return cachePath, nil
+}
+
+func (d *LocalDownloader) DownloadVSCode(version string) (string, error) {
+	if version == "" {
+		version = "v1.105.1"
+	}
+
+	url := d.getVSCodeDownloadURL(version)
+	return d.Download(url)
+}
+
+func (d *LocalDownloader) getVSCodeDownloadURL(version string) string {
+	os := runtime.GOOS
+	arch := runtime.GOARCH
+
+	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/%s/openvscode-server-%s", version, version)
+
+	switch os {
+	case "linux":
+		if arch == "amd64" {
+			return baseURL + "-linux-x64.tar.gz"
+		} else if arch == "arm64" {
+			return baseURL + "-linux-arm64.tar.gz"
+		}
+	case "darwin":
+		if arch == "amd64" {
+			return baseURL + "-darwin-x64.tar.gz"
+		} else if arch == "arm64" {
+			return baseURL + "-darwin-arm64.tar.gz"
+		}
+	}
+
+	return baseURL + fmt.Sprintf("-%s-%s.tar.gz", os, arch)
 }
 
 func (d *LocalDownloader) getCachePath(url string) (string, error) {

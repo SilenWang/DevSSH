@@ -61,6 +61,7 @@ func (r *Runner) Install(version string) error {
 	fmt.Println("Downloading openvscode-server...")
 
 	url := r.getDownloadURL(version)
+	fmt.Println(url)
 	downloadPath := filepath.Join(r.workDir, fmt.Sprintf("openvscode-server-%s.tar.gz", version))
 
 	if err := r.download(url, downloadPath); err != nil {
@@ -164,7 +165,7 @@ func (r *Runner) getDownloadURL(version string) string {
 	os := runtime.GOOS
 	arch := runtime.GOARCH
 
-	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/%s/openvscode-server-%s", version, version)
+	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-%s/openvscode-server-%s", version, version)
 
 	switch os {
 	case "linux":
@@ -317,4 +318,55 @@ func getHomeDir() (string, error) {
 	}
 
 	return usr.HomeDir, nil
+}
+
+func (r *Runner) InstallFromTar(tarPath string) error {
+	if r.IsInstalled() {
+		fmt.Println("VSCode is already installed")
+		return nil
+	}
+
+	fmt.Println("Installing VSCode from local tar.gz...")
+
+	if err := os.MkdirAll(r.binDir, 0755); err != nil {
+		return fmt.Errorf("failed to create bin directory: %w", err)
+	}
+
+	if err := r.extract(tarPath); err != nil {
+		return fmt.Errorf("failed to extract: %w", err)
+	}
+
+	fmt.Println("VSCode installed successfully")
+	return nil
+}
+
+func (r *Runner) Uninstall() error {
+	if r.IsRunning() {
+		if err := r.Stop(); err != nil {
+			return fmt.Errorf("failed to stop VSCode: %w", err)
+		}
+	}
+
+	if r.IsInstalled() {
+		if err := os.RemoveAll(r.binDir); err != nil {
+			return fmt.Errorf("failed to remove bin directory: %w", err)
+		}
+	}
+
+	r.removePID()
+
+	fmt.Println("VSCode uninstalled successfully")
+	return nil
+}
+
+func (r *Runner) GetWorkDir() string {
+	return r.workDir
+}
+
+func (r *Runner) GetBinDir() string {
+	return r.binDir
+}
+
+func (r *Runner) GetServerPath() string {
+	return r.serverPath
 }
