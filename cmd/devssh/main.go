@@ -156,7 +156,7 @@ func newUpCmd() *cobra.Command {
 			logger.Infof("Connected successfully")
 
 			if idePort == 0 {
-				idePort = 8080
+				idePort = 10080
 			}
 
 			return doUpCommand(client, host, ideType, idePort, version, forwards, auto, logger)
@@ -168,7 +168,7 @@ func newUpCmd() *cobra.Command {
 	cmd.Flags().StringVar(&keyPath, "key", "", "SSH private key path")
 	cmd.Flags().StringVar(&password, "password", "", "SSH password")
 	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server)")
-	cmd.Flags().IntVar(&idePort, "ide-port", 8080, "Port for IDE")
+	cmd.Flags().IntVar(&idePort, "ide-port", 10080, "Port for IDE")
 	cmd.Flags().StringVar(&version, "version", "v1.105.1", "IDE version")
 	cmd.Flags().StringSliceVar(&forwards, "forward", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
