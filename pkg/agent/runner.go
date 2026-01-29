@@ -14,6 +14,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"devssh/pkg/logging"
 )
 
 const (
@@ -59,17 +61,17 @@ func (r *Runner) Install(version string) error {
 		return nil
 	}
 
-	fmt.Println("Downloading openvscode-server...")
+	logging.Infof("Downloading openvscode-server...")
 
 	url := r.getDownloadURL(version)
-	fmt.Println(url)
+	logging.Infof("%s", url)
 	downloadPath := filepath.Join(r.workDir, fmt.Sprintf("openvscode-server-%s.tar.gz", version))
 
 	if err := r.download(url, downloadPath); err != nil {
 		return fmt.Errorf("failed to download: %w", err)
 	}
 
-	fmt.Println("Extracting...")
+	logging.Infof("Extracting...")
 
 	if err := os.MkdirAll(r.binDir, 0755); err != nil {
 		return fmt.Errorf("failed to create bin directory: %w", err)
@@ -120,7 +122,7 @@ func (r *Runner) Start(port int) error {
 
 	r.savePID(r.serverPID)
 
-	fmt.Printf("VSCode started with PID %d\n", r.serverPID)
+	logging.Infof("VSCode started with PID %d", r.serverPID)
 
 	return nil
 }
@@ -144,7 +146,7 @@ func (r *Runner) Stop() error {
 
 	r.removePID()
 
-	fmt.Println("VSCode stopped")
+	logging.Infof("VSCode stopped")
 
 	return nil
 }
@@ -351,11 +353,11 @@ func getHomeDir() (string, error) {
 
 func (r *Runner) InstallFromTar(tarPath string) error {
 	if r.IsInstalled() {
-		fmt.Println("VSCode is already installed")
+		logging.Infof("VSCode is already installed")
 		return nil
 	}
 
-	fmt.Println("Installing VSCode from local tar.gz...")
+	logging.Infof("Installing VSCode from local tar.gz...")
 
 	if err := os.MkdirAll(r.binDir, 0755); err != nil {
 		return fmt.Errorf("failed to create bin directory: %w", err)
@@ -365,7 +367,7 @@ func (r *Runner) InstallFromTar(tarPath string) error {
 		return fmt.Errorf("failed to extract: %w", err)
 	}
 
-	fmt.Println("VSCode installed successfully")
+	logging.Infof("VSCode installed successfully")
 	return nil
 }
 
@@ -384,7 +386,7 @@ func (r *Runner) Uninstall() error {
 
 	r.removePID()
 
-	fmt.Println("VSCode uninstalled successfully")
+	logging.Infof("VSCode uninstalled successfully")
 	return nil
 }
 

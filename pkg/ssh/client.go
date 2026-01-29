@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"devssh/pkg/logging"
 	"github.com/loft-sh/log"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -30,8 +30,7 @@ type Client struct {
 }
 
 func NewClient(config *Config) *Client {
-	// 创建一个不输出任何内容的logger
-	logger := log.NewStreamLogger(io.Discard, io.Discard, logrus.InfoLevel)
+	logger := logging.InitQuiet()
 	return &Client{
 		config: config,
 		logger: logger,
@@ -47,8 +46,7 @@ func NewClientWithLogger(config *Config, logger log.Logger) *Client {
 
 // NewClientFromSSHConfig 从SSH配置文件创建客户端
 func NewClientFromSSHConfig(hostName string, overrideConfig *Config) (*Client, error) {
-	// 创建一个不输出任何内容的logger
-	logger := log.NewStreamLogger(io.Discard, io.Discard, logrus.InfoLevel)
+	logger := logging.InitQuiet()
 	return NewClientFromSSHConfigWithLogger(hostName, overrideConfig, logger)
 }
 

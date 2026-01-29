@@ -1,13 +1,11 @@
 package ide
 
 import (
-	"os"
-
+	"devssh/pkg/logging"
 	"devssh/pkg/ssh"
 
 	"github.com/loft-sh/devpod/pkg/config"
 	"github.com/loft-sh/log"
-	"github.com/sirupsen/logrus"
 )
 
 type IDE string
@@ -43,7 +41,7 @@ func NewInstaller(sshClient *ssh.Client, ideType IDE) Installer {
 		"VERSION":       {Value: "v1.105.1"},
 	}
 
-	logger := log.NewStreamLogger(os.Stdout, os.Stderr, logrus.InfoLevel)
+	logger := logging.InitDefault()
 
 	return &LegacyInstaller{
 		sshClient: sshClient,
@@ -58,7 +56,7 @@ func NewInstallerWithOptions(sshClient *ssh.Client, ideType IDE, values map[stri
 		values = make(map[string]config.OptionValue)
 	}
 	if logger == nil {
-		logger = log.NewStreamLogger(os.Stdout, os.Stderr, logrus.InfoLevel)
+		logger = logging.InitDefault()
 	}
 
 	return &LegacyInstaller{

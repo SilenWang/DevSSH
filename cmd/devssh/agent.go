@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"devssh/pkg/agent"
+	"devssh/pkg/logging"
 
 	"github.com/spf13/cobra"
 )
@@ -58,11 +59,11 @@ If already installed, this command will be skipped.`,
 			}
 
 			if runner.IsInstalled() {
-				fmt.Println("VSCode is already installed")
+				logging.Infof("VSCode is already installed")
 				return nil
 			}
 
-			fmt.Println("Installing VSCode...")
+			logging.Infof("Installing VSCode...")
 
 			if localTar != "" {
 				if err := runner.InstallFromTar(localTar); err != nil {
@@ -74,7 +75,7 @@ If already installed, this command will be skipped.`,
 				}
 			}
 
-			fmt.Println("VSCode installed successfully")
+			logging.Infof("VSCode installed successfully")
 			return nil
 		},
 	}
@@ -104,18 +105,18 @@ If VSCode is already running, this command will be skipped.`,
 			}
 
 			if runner.IsRunning() {
-				fmt.Println("VSCode is already running")
+				logging.Infof("VSCode is already running")
 				return nil
 			}
 
-			fmt.Printf("Starting VSCode on port %d...\n", port)
+			logging.Infof("Starting VSCode on port %d...", port)
 
 			if err := runner.Start(port); err != nil {
 				return fmt.Errorf("failed to start VSCode: %w", err)
 			}
 
-			fmt.Printf("VSCode started successfully\n")
-			fmt.Printf("VSCode is accessible at http://localhost:%d\n", port)
+			logging.Infof("VSCode started successfully")
+			logging.Infof("VSCode is accessible at http://localhost:%d", port)
 			return nil
 		},
 	}
@@ -137,17 +138,17 @@ func newAgentStopCmd() *cobra.Command {
 			}
 
 			if !runner.IsRunning() {
-				fmt.Println("VSCode is not running")
+				logging.Infof("VSCode is not running")
 				return nil
 			}
 
-			fmt.Println("Stopping VSCode...")
+			logging.Infof("Stopping VSCode...")
 
 			if err := runner.Stop(); err != nil {
 				return fmt.Errorf("failed to stop VSCode: %w", err)
 			}
 
-			fmt.Println("VSCode stopped successfully")
+			logging.Infof("VSCode stopped successfully")
 			return nil
 		},
 	}
@@ -167,11 +168,11 @@ func newAgentUninstallCmd() *cobra.Command {
 			}
 
 			if !runner.IsInstalled() && !runner.IsRunning() {
-				fmt.Println("VSCode is not installed")
+				logging.Infof("VSCode is not installed")
 				return nil
 			}
 
-			fmt.Println("Uninstalling VSCode...")
+			logging.Infof("Uninstalling VSCode...")
 
 			if err := runner.Uninstall(); err != nil {
 				return fmt.Errorf("failed to uninstall VSCode: %w", err)
