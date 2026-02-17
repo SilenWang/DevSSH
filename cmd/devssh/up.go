@@ -24,7 +24,7 @@ func uploadToRemote(client *ssh.Client, localPath, remotePath string) error {
 }
 
 func checkRemoteDevSSH(client *ssh.Client) (exists bool, version string, err error) {
-	cmd := "test -x ~/.devssh/bin/devssh && ~/.devssh/bin/devssh --version 2>/dev/null || echo 'not_found'"
+	cmd := "test -f ~/.devssh/bin/devssh && ~/.devssh/bin/devssh --version 2>/dev/null || echo 'not_found'"
 	output, err := client.RunCommand(cmd)
 	if err != nil {
 		return false, "", nil
@@ -33,6 +33,7 @@ func checkRemoteDevSSH(client *ssh.Client) (exists bool, version string, err err
 		return false, "", nil
 	}
 	version = strings.TrimSpace(output)
+	version = strings.TrimPrefix(version, "devssh version ")
 	return true, version, nil
 }
 
@@ -163,20 +164,31 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 		logger.Infof("devssh %s is already installed", remoteVersion)
 	}
 
-	logger.Infof("Downloading VSCode %s for %s/%s...", version, remoteOS, remoteArch)
-	vscodePath, err := downloadVSCodeLocal(version, remoteOS, remoteArch, logger)
-	if err != nil {
-		return fmt.Errorf("failed to download VSCode: %w", err)
+	logger.Infof("Checking VSCode installation on remote...")
+	vscodeCheckCmd := "test -f ~/.devssh/openvscode/bin/openvscode-server && echo 'installed' || echo 'not_installed'"
+	checkOutput, checkErr := client.RunCommand(vscodeCheckCmd)
+	if checkErr != nil {
+		return fmt.Errorf("failed to check remote VSCode: %w", checkErr)
 	}
 
-	logger.Infof("Uploading VSCode to remote...")
-	if err := uploadToRemote(client, vscodePath, "~/.devssh/openvscode.tar.gz"); err != nil {
-		return fmt.Errorf("failed to upload VSCode: %w", err)
-	}
+	if strings.Contains(checkOutput, "not_installed") {
+		logger.Infof("Downloading VSCode %s for %s/%s...", version, remoteOS, remoteArch)
+		vscodePath, err := downloadVSCodeLocal(version, remoteOS, remoteArch, logger)
+		if err != nil {
+			return fmt.Errorf("failed to download VSCode: %w", err)
+		}
 
-	logger.Infof("Installing VSCode on remote...")
-	if _, err := runRemoteAgentCommand(client, "install --local-tar ~/.devssh/openvscode.tar.gz"); err != nil {
-		return fmt.Errorf("failed to install VSCode: %w", err)
+		logger.Infof("Uploading VSCode to remote...")
+		if err := uploadToRemote(client, vscodePath, "~/.devssh/openvscode.tar.gz"); err != nil {
+			return fmt.Errorf("failed to upload VSCode: %w", err)
+		}
+
+		logger.Infof("Installing VSCode on remote...")
+		if _, err := runRemoteAgentCommand(client, "install --local-tar ~/.devssh/openvscode.tar.gz"); err != nil {
+			return fmt.Errorf("failed to install VSCode: %w", err)
+		}
+	} else {
+		logger.Infof("VSCode is already installed, skipping installation")
 	}
 
 	logger.Infof("Starting VSCode on port %d...", idePort)
