@@ -191,9 +191,58 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 		logger.Infof("VSCode is already installed, skipping installation")
 	}
 
-	logger.Infof("Starting VSCode on port %d...", idePort)
-	if _, err := runRemoteAgentCommand(client, fmt.Sprintf("start --port %d", idePort)); err != nil {
-		return fmt.Errorf("failed to start VSCode: %w", err)
+	logger.Infof("Checking VSCode status on remote...")
+	currentPort := 0
+	isRunning := false
+
+	vscodeCheckCmdStr := "~/.devssh/bin/devssh agent is-running"
+	checkOutput, cmdErr := client.RunCommand(vscodeCheckCmdStr)
+	if cmdErr == nil && strings.Contains(checkOutput, "running") {
+		isRunning = true
+	}
+
+	if isRunning {
+		vscodePortCmdStr := "~/.devssh/bin/devssh agent get-port"
+		portOutput, cmdErr := client.RunCommand(vscodePortCmdStr)
+		if cmdErr == nil {
+			portStr := strings.TrimSpace(portOutput)
+			currentPort, _ = strconv.Atoi(portStr)
+		}
+	}
+
+	shouldStart := false
+	if !isRunning {
+		logger.Infof("VSCode is not running, will start it")
+		shouldStart = true
+	} else if currentPort == 0 {
+		logger.Infof("VSCode is running but port is unknown, restarting with specified port %d...", idePort)
+		logger.Infof("Stopping VSCode...")
+		_, cmdErr := client.RunCommand("~/.devssh/bin/devssh agent stop")
+		if cmdErr != nil {
+			pidCmd := "cat ~/.devssh/agent.pid | grep pid= | cut -d= -f2"
+			pidOutput, _ := client.RunCommand(pidCmd)
+			return fmt.Errorf("failed to stop VSCode (pid: %s). Please manually kill the process and try again", strings.TrimSpace(pidOutput))
+		}
+		shouldStart = true
+	} else if currentPort > 0 && currentPort != idePort {
+		logger.Warnf("VSCode is running on port %d, but requested port is %d", currentPort, idePort)
+		logger.Infof("Stopping VSCode...")
+		_, cmdErr := client.RunCommand("~/.devssh/bin/devssh agent stop")
+		if cmdErr != nil {
+			pidCmd := "cat ~/.devssh/agent.pid | grep pid= | cut -d= -f2"
+			pidOutput, _ := client.RunCommand(pidCmd)
+			return fmt.Errorf("failed to stop VSCode (pid: %s). Please manually kill the process and try again", strings.TrimSpace(pidOutput))
+		}
+		shouldStart = true
+	} else {
+		logger.Infof("VSCode is already running on port %d, skipping start", currentPort)
+	}
+
+	if shouldStart {
+		logger.Infof("Starting VSCode on port %d...", idePort)
+		if _, err := runRemoteAgentCommand(client, fmt.Sprintf("start --port %d", idePort)); err != nil {
+			return fmt.Errorf("failed to start VSCode: %w", err)
+		}
 	}
 
 	tunnelManager := tunnel.NewTunnelManagerWithLogger(logger)

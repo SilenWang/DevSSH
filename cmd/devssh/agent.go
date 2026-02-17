@@ -16,10 +16,12 @@ func newAgentCmd() *cobra.Command {
 		Long: `Manage VSCode (openvscode-server) installation and running on the current machine.
 
 Commands:
-  install    Download and install openvscode-server
-  start      Start VSCode
-  stop       Stop VSCode
-  uninstall  Uninstall VSCode and clean up
+  install     Download and install openvscode-server
+  start       Start VSCode
+  stop        Stop VSCode
+  uninstall   Uninstall VSCode and clean up
+  is-running  Check if VSCode is running
+  get-port    Get the port VSCode is running on
 
 Examples:
   devssh agent install
@@ -28,6 +30,8 @@ Examples:
   devssh agent start --port 10080
   devssh agent stop
   devssh agent uninstall
+  devssh agent is-running
+  devssh agent get-port
 `,
 	}
 
@@ -36,6 +40,8 @@ Examples:
 		newAgentStartCmd(),
 		newAgentStopCmd(),
 		newAgentUninstallCmd(),
+		newAgentIsRunningCmd(),
+		newAgentGetPortCmd(),
 	)
 
 	return cmd
@@ -178,6 +184,53 @@ func newAgentUninstallCmd() *cobra.Command {
 				return fmt.Errorf("failed to uninstall VSCode: %w", err)
 			}
 
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newAgentIsRunningCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "is-running",
+		Short: "Check if VSCode is running",
+		Long:  `Check if VSCode (openvscode-server) is currently running.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if runner.IsRunning() {
+				fmt.Println("running")
+			} else {
+				fmt.Println("not_running")
+			}
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newAgentGetPortCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get-port",
+		Short: "Get the port VSCode is running on",
+		Long:  `Get the port number that VSCode (openvscode-server) is running on.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if !runner.IsRunning() {
+				return nil
+			}
+
+			port := runner.GetRunningPort()
+			fmt.Printf("%d\n", port)
 			return nil
 		},
 	}

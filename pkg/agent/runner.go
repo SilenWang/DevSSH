@@ -120,7 +120,7 @@ func (r *Runner) Start(port int) error {
 
 	r.serverPID = cmd.Process.Pid
 
-	r.savePID(r.serverPID)
+	r.savePID(r.serverPID, port)
 
 	logging.Infof("VSCode started with PID %d", r.serverPID)
 
@@ -314,9 +314,10 @@ func (r *Runner) startCommand(port int) *exec.Cmd {
 	)
 }
 
-func (r *Runner) savePID(pid int) {
+func (r *Runner) savePID(pid, port int) {
 	pidPath := r.pidPath()
-	os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", pid)), 0644)
+	content := fmt.Sprintf("[lock]\npid=%d\nport=%d\n", pid, port)
+	os.WriteFile(pidPath, []byte(content), 0644)
 }
 
 func (r *Runner) loadPID() {
@@ -325,7 +326,34 @@ func (r *Runner) loadPID() {
 	if err != nil {
 		return
 	}
-	fmt.Sscanf(string(data), "%d", &r.serverPID)
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "pid=") {
+			fmt.Sscanf(line, "pid=%d", &r.serverPID)
+		}
+	}
+}
+
+func (r *Runner) GetRunningPort() int {
+	if r.serverPID == 0 {
+		r.loadPID()
+	}
+	if r.serverPID == 0 {
+		return 0
+	}
+	data, err := os.ReadFile(r.pidPath())
+	if err != nil {
+		return 0
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "port=") {
+			var port int
+			fmt.Sscanf(line, "port=%d", &port)
+			return port
+		}
+	}
+	return 0
 }
 
 func (r *Runner) removePID() {
