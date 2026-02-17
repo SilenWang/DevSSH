@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	DevSSHDownloadURL = "https://github.com/yourusername/devssh/releases/download/{{version}}/devssh-{{version}}-{{os}}-{{arch}}"
+	DevSSHDownloadURL = "https://github.com/SilenWang/devssh/releases/download/{{version}}/devssh-{{version}}-{{os}}-{{arch}}"
 )
 
 type HostConfig struct {
@@ -234,16 +234,7 @@ func GetLocalArch() string {
 }
 
 func getGOOS() string {
-	switch runtime.GOOS {
-	case "darwin":
-		return "darwin"
-	case "linux":
-		return "linux"
-	case "windows":
-		return "windows"
-	default:
-		return runtime.GOOS
-	}
+	return "linux"
 }
 
 func getGOArch() string {
@@ -252,8 +243,6 @@ func getGOArch() string {
 		return "amd64"
 	case "arm64":
 		return "arm64"
-	case "arm":
-		return "arm"
 	default:
 		return runtime.GOARCH
 	}

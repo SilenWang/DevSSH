@@ -23,11 +23,11 @@ const (
 )
 
 type Runner struct {
-	workDir    string
-	logFile    string
-	binDir     string
-	serverPath string
-	serverPID  int
+	workDir       string
+	logFile       string
+	openvscodeDir string
+	serverPath    string
+	serverPID     int
 }
 
 func NewRunner() (*Runner, error) {
@@ -42,13 +42,13 @@ func NewRunner() (*Runner, error) {
 	}
 
 	logFile := filepath.Join(workDir, "agent.log")
-	binDir := filepath.Join(workDir, "bin")
+	openvscodeDir := filepath.Join(workDir, "openvscode")
 
 	return &Runner{
-		workDir:    workDir,
-		logFile:    logFile,
-		binDir:     binDir,
-		serverPath: filepath.Join(binDir, "bin", "openvscode-server"),
+		workDir:       workDir,
+		logFile:       logFile,
+		openvscodeDir: openvscodeDir,
+		serverPath:    filepath.Join(openvscodeDir, "bin", "openvscode-server"),
 	}, nil
 }
 
@@ -73,8 +73,8 @@ func (r *Runner) Install(version string) error {
 
 	logging.Infof("Extracting...")
 
-	if err := os.MkdirAll(r.binDir, 0755); err != nil {
-		return fmt.Errorf("failed to create bin directory: %w", err)
+	if err := os.MkdirAll(r.openvscodeDir, 0755); err != nil {
+		return fmt.Errorf("failed to create openvscode directory: %w", err)
 	}
 
 	if err := r.extract(downloadPath); err != nil {
@@ -253,7 +253,7 @@ func (r *Runner) extract(archivePath string) error {
 			continue
 		}
 
-		targetPath := filepath.Join(r.binDir, name)
+		targetPath := filepath.Join(r.openvscodeDir, name)
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -287,7 +287,7 @@ func (r *Runner) extract(archivePath string) error {
 			}
 
 			if !filepath.IsAbs(linkTarget) {
-				linkTarget = filepath.Join(r.binDir, linkTarget)
+				linkTarget = filepath.Join(r.openvscodeDir, linkTarget)
 			}
 
 			dir := filepath.Dir(targetPath)
@@ -359,8 +359,8 @@ func (r *Runner) InstallFromTar(tarPath string) error {
 
 	logging.Infof("Installing VSCode from local tar.gz...")
 
-	if err := os.MkdirAll(r.binDir, 0755); err != nil {
-		return fmt.Errorf("failed to create bin directory: %w", err)
+	if err := os.MkdirAll(r.openvscodeDir, 0755); err != nil {
+		return fmt.Errorf("failed to create openvscode directory: %w", err)
 	}
 
 	if err := r.extract(tarPath); err != nil {
@@ -379,8 +379,8 @@ func (r *Runner) Uninstall() error {
 	}
 
 	if r.IsInstalled() {
-		if err := os.RemoveAll(r.binDir); err != nil {
-			return fmt.Errorf("failed to remove bin directory: %w", err)
+		if err := os.RemoveAll(r.openvscodeDir); err != nil {
+			return fmt.Errorf("failed to remove openvscode directory: %w", err)
 		}
 	}
 
@@ -394,8 +394,8 @@ func (r *Runner) GetWorkDir() string {
 	return r.workDir
 }
 
-func (r *Runner) GetBinDir() string {
-	return r.binDir
+func (r *Runner) GetOpenVSCodeDir() string {
+	return r.openvscodeDir
 }
 
 func (r *Runner) GetServerPath() string {

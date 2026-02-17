@@ -1,6 +1,6 @@
 package:
   name: devssh
-  version: 0.1.2
+  version: 0.1.3
 
 source:
   path: .
@@ -9,7 +9,7 @@ source:
 build:
   number: 0
   script: |
-    go build -o "$PREFIX/bin/devssh" cmd/devssh/main.go
+    go build -o bin/devssh cmd/devssh
 
 requirements:
   build:

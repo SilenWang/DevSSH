@@ -69,6 +69,14 @@ func deployDevSSH(client *ssh.Client, version string, logger log.Logger) error {
 		return fmt.Errorf("failed to detect remote arch: %w", err)
 	}
 
+	if remoteOS != "linux" {
+		return fmt.Errorf("unsupported platform: %s. Only Linux is supported", remoteOS)
+	}
+
+	if remoteArch != "amd64" && remoteArch != "arm64" {
+		return fmt.Errorf("unsupported architecture: %s. Only amd64 and arm64 are supported", remoteArch)
+	}
+
 	url := config.GetDevSSHDownloadURL(version, remoteOS, remoteArch)
 
 	logger.Infof("Downloading devssh %s for %s/%s...", version, remoteOS, remoteArch)
