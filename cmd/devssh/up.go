@@ -79,7 +79,7 @@ func deployDevSSH(client *ssh.Client, version string, logger log.Logger) error {
 
 	url := config.GetDevSSHDownloadURL(version, remoteOS, remoteArch)
 
-	logger.Infof("Downloading devssh %s for %s/%s...", version, remoteOS, remoteArch)
+	logger.Infof("Downloading devssh %s for %s/%s from %s ...", version, remoteOS, remoteArch, url)
 
 	cacheDir, err := getCacheDir()
 	if err != nil {
@@ -113,14 +113,14 @@ func runRemoteAgentCommand(client *ssh.Client, args string) (string, error) {
 	return output, nil
 }
 
-func downloadVSCodeLocal(version string, logger log.Logger) (string, error) {
+func downloadVSCodeLocal(version, os, arch string, logger log.Logger) (string, error) {
 	cacheDir, err := getCacheDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get cache directory: %w", err)
 	}
 
 	downloader := download.NewLocalDownloader(cacheDir, logger)
-	return downloader.DownloadVSCode(version)
+	return downloader.DownloadVSCode(version, os, arch)
 }
 
 func getCacheDir() (string, error) {
@@ -136,6 +136,22 @@ func getCacheDir() (string, error) {
 }
 
 func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, version string, forwards []string, auto bool, logger log.Logger) error {
+	logger.Infof("Detecting remote platform...")
+	remoteOS, remoteArch, err := detectRemoteArch(client)
+	if err != nil {
+		return fmt.Errorf("failed to detect remote platform: %w", err)
+	}
+
+	if remoteOS != "linux" {
+		return fmt.Errorf("unsupported platform: %s. Only Linux is supported", remoteOS)
+	}
+
+	if remoteArch != "amd64" && remoteArch != "arm64" {
+		return fmt.Errorf("unsupported architecture: %s. Only amd64 and arm64 are supported", remoteArch)
+	}
+
+	logger.Infof("Target platform: %s/%s", remoteOS, remoteArch)
+
 	logger.Infof("Checking devssh on remote...")
 	exists, remoteVersion, _ := checkRemoteDevSSH(client)
 	if !exists || remoteVersion != GetVersion() {
@@ -147,8 +163,8 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 		logger.Infof("devssh %s is already installed", remoteVersion)
 	}
 
-	logger.Infof("Downloading VSCode %s...", version)
-	vscodePath, err := downloadVSCodeLocal(version, logger)
+	logger.Infof("Downloading VSCode %s for %s/%s...", version, remoteOS, remoteArch)
+	vscodePath, err := downloadVSCodeLocal(version, remoteOS, remoteArch, logger)
 	if err != nil {
 		return fmt.Errorf("failed to download VSCode: %w", err)
 	}

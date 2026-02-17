@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	DevSSHDownloadURL = "https://github.com/SilenWang/devssh/releases/download/{{version}}/devssh-{{version}}-{{os}}-{{arch}}"
+	DevSSHDownloadURL = "https://github.com/SilenWang/DevSSH/releases/download/{{version}}/devssh-{{version}}-{{os}}-{{arch}}"
 )
 
 type HostConfig struct {
@@ -218,10 +218,13 @@ func Save(cfg *Config) error {
 }
 
 func GetDevSSHDownloadURL(version, os, arch string) string {
-	url := DevSSHDownloadURL
-	url = strings.Replace(url, "{{version}}", version, 1)
-	url = strings.Replace(url, "{{os}}", os, 1)
-	url = strings.Replace(url, "{{arch}}", arch, 1)
+	replacer := strings.NewReplacer(
+		"{{version}}", version,
+		"{{os}}", os,
+		"{{arch}}", arch,
+	)
+
+	url := replacer.Replace(DevSSHDownloadURL)
 	return url
 }
 

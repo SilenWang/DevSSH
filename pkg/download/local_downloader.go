@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
+	"strings"
 	"time"
 
 	"github.com/loft-sh/log"
@@ -50,20 +50,18 @@ func (d *LocalDownloader) Download(url string) (string, error) {
 	return cachePath, nil
 }
 
-func (d *LocalDownloader) DownloadVSCode(version string) (string, error) {
+func (d *LocalDownloader) DownloadVSCode(version, os, arch string) (string, error) {
 	if version == "" {
 		version = "v1.105.1"
 	}
 
-	url := d.getVSCodeDownloadURL(version)
+	url := d.getVSCodeDownloadURL(version, os, arch)
+	d.logger.Infof("Downloading VSCode from %s", url)
 	return d.Download(url)
 }
 
-func (d *LocalDownloader) getVSCodeDownloadURL(version string) string {
-	os := runtime.GOOS
-	arch := runtime.GOARCH
-
-	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/%s/openvscode-server-%s", version, version)
+func (d *LocalDownloader) getVSCodeDownloadURL(version, os, arch string) string {
+	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-%s/openvscode-server-%s", version, version)
 
 	switch os {
 	case "linux":
@@ -71,12 +69,6 @@ func (d *LocalDownloader) getVSCodeDownloadURL(version string) string {
 			return baseURL + "-linux-x64.tar.gz"
 		} else if arch == "arm64" {
 			return baseURL + "-linux-arm64.tar.gz"
-		}
-	case "darwin":
-		if arch == "amd64" {
-			return baseURL + "-darwin-x64.tar.gz"
-		} else if arch == "arm64" {
-			return baseURL + "-darwin-arm64.tar.gz"
 		}
 	}
 
@@ -89,8 +81,22 @@ func (d *LocalDownloader) getCachePath(url string) (string, error) {
 	}
 
 	hash := sha256.Sum256([]byte(url))
-	filename := fmt.Sprintf("%x.tar.gz", hash[:8])
+	ext := extractExtFromURL(url)
+	filename := fmt.Sprintf("%x%s", hash[:8], ext)
 	return filepath.Join(d.cacheDir, filename), nil
+}
+
+func extractExtFromURL(url string) string {
+	if strings.HasSuffix(url, ".tar.gz") {
+		return ".tar.gz"
+	}
+	if strings.HasSuffix(url, ".gz") {
+		return ".gz"
+	}
+	if strings.HasSuffix(url, ".zip") {
+		return ".zip"
+	}
+	return ""
 }
 
 func (d *LocalDownloader) isCacheValid(cachePath string) bool {
