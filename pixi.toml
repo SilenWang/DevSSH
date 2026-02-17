@@ -3,14 +3,31 @@ authors = ["Sylens Wong <qiumin14@163.com>"]
 channels = ["conda-forge"]
 name = "DevSSH"
 platforms = ["linux-aarch64", "linux-64"]
-version = "0.1.1"
+version = "0.1.2"
 preview = ["pixi-build"]
 
-[tasks]
-build = {cmd = "go build -o bin/devssh cmd/devssh", cwd = "./"}
+[tasks.clean]
+cmd = "rm -f bin/devssh-linux-{{ arch }}"
+args = [{ arg = "arch", default = "amd64" }]
+cwd = "./"
+
+[tasks.build_arch]
+cmd = "GOARCH={{ arch }} go build -o bin/devssh-linux-{{ arch }} ./cmd/devssh/"
+args = [{ arg = "arch", default = "amd64" }]
+cwd = "./"
+depends-on = [{ task = "clean", args = ["{{ arch }}"] }]
+
+[tasks.build]
+cmd = "echo 'Build Done'"
+depends-on = [
+    { task = "build_arch", args = ["amd64"] },
+    { task = "build_arch", args = ["arm64"] }
+]
+cwd = "./"
 
 [activation.env]
 CGO_ENABLED = "0"
+GOOS = "linux"
 
 [dependencies]
 go = ">=1.25.4,<2"
