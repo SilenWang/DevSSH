@@ -14,7 +14,7 @@ Even on devices with limited resources—such as Chromebooks (memory is constrai
 
 ## Development Tools
 
-This project was developed using [opencode](https://github.com/anomalyco/opencode) and [DeepSeek](https://www.deepseek.com/). These AI-assisted tools were used to generate code, accelerate debugging, and improve overall development efficiency.
+This project was developed using [opencode](https://github.com/anomalyco/opencode), [DeepSeek](https://www.deepseek.com/) and [MiniMax](https://www.minimaxi.com/). These AI-assisted tools were used to generate code, accelerate debugging, and improve overall development efficiency.
 
 ## Building from Source
 
