@@ -7,7 +7,7 @@ version = "0.1.1"
 preview = ["pixi-build"]
 
 [tasks]
-build = {cmd = "go build -o bin/devssh cmd/devssh/main.go", cwd = "./"}
+build = {cmd = "go build -o bin/devssh cmd/devssh", cwd = "./"}
 
 [activation.env]
 CGO_ENABLED = "0"
