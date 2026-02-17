@@ -2,12 +2,11 @@ package tunnel
 
 import (
 	"fmt"
-	"io"
 	"sync"
 
+	"devssh/pkg/logging"
 	"devssh/pkg/ssh"
 	"github.com/loft-sh/log"
-	"github.com/sirupsen/logrus"
 )
 
 type TunnelManager struct {
@@ -17,8 +16,7 @@ type TunnelManager struct {
 }
 
 func NewTunnelManager() *TunnelManager {
-	// 创建一个不输出任何内容的logger
-	logger := log.NewStreamLogger(io.Discard, io.Discard, logrus.InfoLevel)
+	logger := logging.InitQuiet()
 	return &TunnelManager{
 		tunnels: make(map[string]*ssh.Tunnel),
 		logger:  logger,

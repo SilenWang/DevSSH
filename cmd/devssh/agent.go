@@ -1,0 +1,239 @@
+package main
+
+import (
+	"fmt"
+
+	"devssh/pkg/agent"
+	"devssh/pkg/logging"
+
+	"github.com/spf13/cobra"
+)
+
+func newAgentCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "agent",
+		Short: "Manage VSCode installation and running",
+		Long: `Manage VSCode (openvscode-server) installation and running on the current machine.
+
+Commands:
+  install     Download and install openvscode-server
+  start       Start VSCode
+  stop        Stop VSCode
+  uninstall   Uninstall VSCode and clean up
+  is-running  Check if VSCode is running
+  get-port    Get the port VSCode is running on
+
+Examples:
+  devssh agent install
+  devssh agent install --version v1.105.1
+  devssh agent install --local-tar /path/to/openvscode.tar.gz
+  devssh agent start --port 10080
+  devssh agent stop
+  devssh agent uninstall
+  devssh agent is-running
+  devssh agent get-port
+`,
+	}
+
+	cmd.AddCommand(
+		newAgentInstallCmd(),
+		newAgentStartCmd(),
+		newAgentStopCmd(),
+		newAgentUninstallCmd(),
+		newAgentIsRunningCmd(),
+		newAgentGetPortCmd(),
+	)
+
+	return cmd
+}
+
+func newAgentInstallCmd() *cobra.Command {
+	var (
+		version  string
+		localTar string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "install",
+		Short: "Download and install openvscode-server",
+		Long: `Download and install openvscode-server to the working directory.
+If already installed, this command will be skipped.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if runner.IsInstalled() {
+				logging.Infof("VSCode is already installed")
+				return nil
+			}
+
+			logging.Infof("Installing VSCode...")
+
+			if localTar != "" {
+				if err := runner.InstallFromTar(localTar); err != nil {
+					return fmt.Errorf("failed to install VSCode from local tar: %w", err)
+				}
+			} else {
+				if err := runner.Install(version); err != nil {
+					return fmt.Errorf("failed to install VSCode: %w", err)
+				}
+			}
+
+			logging.Infof("VSCode installed successfully")
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&version, "version", "v1.105.1", "VSCode version to install")
+	cmd.Flags().StringVar(&localTar, "local-tar", "", "Path to local tar.gz file (use this instead of downloading)")
+
+	return cmd
+}
+
+func newAgentStartCmd() *cobra.Command {
+	var port int
+
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start VSCode",
+		Long: `Start openvscode-server on the specified port.
+If VSCode is already running, this command will be skipped.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if !runner.IsInstalled() {
+				return fmt.Errorf("VSCode is not installed. Run 'devssh agent install' first")
+			}
+
+			if runner.IsRunning() {
+				logging.Infof("VSCode is already running")
+				return nil
+			}
+
+			logging.Infof("Starting VSCode on port %d...", port)
+
+			if err := runner.Start(port); err != nil {
+				return fmt.Errorf("failed to start VSCode: %w", err)
+			}
+
+			logging.Infof("VSCode started successfully")
+			logging.Infof("VSCode is accessible at http://localhost:%d", port)
+			return nil
+		},
+	}
+
+	cmd.Flags().IntVarP(&port, "port", "p", 10080, "Port to start VSCode on")
+
+	return cmd
+}
+
+func newAgentStopCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "stop",
+		Short: "Stop VSCode",
+		Long:  `Stop the running VSCode instance.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if !runner.IsRunning() {
+				logging.Infof("VSCode is not running")
+				return nil
+			}
+
+			logging.Infof("Stopping VSCode...")
+
+			if err := runner.Stop(); err != nil {
+				return fmt.Errorf("failed to stop VSCode: %w", err)
+			}
+
+			logging.Infof("VSCode stopped successfully")
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newAgentUninstallCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Uninstall VSCode and clean up",
+		Long:  `Stop VSCode and remove all installed files.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if !runner.IsInstalled() && !runner.IsRunning() {
+				logging.Infof("VSCode is not installed")
+				return nil
+			}
+
+			logging.Infof("Uninstalling VSCode...")
+
+			if err := runner.Uninstall(); err != nil {
+				return fmt.Errorf("failed to uninstall VSCode: %w", err)
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newAgentIsRunningCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "is-running",
+		Short: "Check if VSCode is running",
+		Long:  `Check if VSCode (openvscode-server) is currently running.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if runner.IsRunning() {
+				fmt.Println("running")
+			} else {
+				fmt.Println("not_running")
+			}
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newAgentGetPortCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get-port",
+		Short: "Get the port VSCode is running on",
+		Long:  `Get the port number that VSCode (openvscode-server) is running on.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runner, err := agent.NewRunner()
+			if err != nil {
+				return fmt.Errorf("failed to create runner: %w", err)
+			}
+
+			if !runner.IsRunning() {
+				return nil
+			}
+
+			port := runner.GetRunningPort()
+			fmt.Printf("%d\n", port)
+			return nil
+		},
+	}
+
+	return cmd
+}

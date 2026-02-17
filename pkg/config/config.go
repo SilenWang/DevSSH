@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"devssh/pkg/ssh"
+)
+
+const (
+	DevSSHDownloadURL = "https://github.com/SilenWang/DevSSH/releases/download/{{version}}/devssh-{{version}}-{{os}}-{{arch}}"
 )
 
 type HostConfig struct {
@@ -210,4 +215,38 @@ func Load() (*Config, error) {
 
 func Save(cfg *Config) error {
 	return cfg.Save()
+}
+
+func GetDevSSHDownloadURL(version, os, arch string) string {
+	replacer := strings.NewReplacer(
+		"{{version}}", version,
+		"{{os}}", os,
+		"{{arch}}", arch,
+	)
+
+	url := replacer.Replace(DevSSHDownloadURL)
+	return url
+}
+
+func GetLocalOS() string {
+	return getGOOS()
+}
+
+func GetLocalArch() string {
+	return getGOArch()
+}
+
+func getGOOS() string {
+	return "linux"
+}
+
+func getGOArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "amd64"
+	case "arm64":
+		return "arm64"
+	default:
+		return runtime.GOARCH
+	}
 }

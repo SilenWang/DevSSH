@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/loft-sh/log"
@@ -39,14 +40,39 @@ func (d *LocalDownloader) Download(url string) (string, error) {
 		return cachePath, nil
 	}
 
-	d.logger.Infof("正在下载 openvscode-server...")
+	d.logger.Infof("Downloading...")
 
 	if err := d.downloadFile(url, cachePath); err != nil {
 		return "", fmt.Errorf("failed to download file: %w", err)
 	}
 
-	d.logger.Infof("下载完成: %s", filepath.Base(cachePath))
+	d.logger.Infof("Download complete: %s", filepath.Base(cachePath))
 	return cachePath, nil
+}
+
+func (d *LocalDownloader) DownloadVSCode(version, os, arch string) (string, error) {
+	if version == "" {
+		version = "v1.105.1"
+	}
+
+	url := d.getVSCodeDownloadURL(version, os, arch)
+	d.logger.Infof("Downloading VSCode from %s", url)
+	return d.Download(url)
+}
+
+func (d *LocalDownloader) getVSCodeDownloadURL(version, os, arch string) string {
+	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-%s/openvscode-server-%s", version, version)
+
+	switch os {
+	case "linux":
+		if arch == "amd64" {
+			return baseURL + "-linux-x64.tar.gz"
+		} else if arch == "arm64" {
+			return baseURL + "-linux-arm64.tar.gz"
+		}
+	}
+
+	return baseURL + fmt.Sprintf("-%s-%s.tar.gz", os, arch)
 }
 
 func (d *LocalDownloader) getCachePath(url string) (string, error) {
@@ -55,8 +81,22 @@ func (d *LocalDownloader) getCachePath(url string) (string, error) {
 	}
 
 	hash := sha256.Sum256([]byte(url))
-	filename := fmt.Sprintf("%x.tar.gz", hash[:8])
+	ext := extractExtFromURL(url)
+	filename := fmt.Sprintf("%x%s", hash[:8], ext)
 	return filepath.Join(d.cacheDir, filename), nil
+}
+
+func extractExtFromURL(url string) string {
+	if strings.HasSuffix(url, ".tar.gz") {
+		return ".tar.gz"
+	}
+	if strings.HasSuffix(url, ".gz") {
+		return ".gz"
+	}
+	if strings.HasSuffix(url, ".zip") {
+		return ".zip"
+	}
+	return ""
 }
 
 func (d *LocalDownloader) isCacheValid(cachePath string) bool {
