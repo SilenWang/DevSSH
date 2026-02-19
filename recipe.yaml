@@ -1,15 +1,15 @@
 package:
   name: devssh
-  version: 0.1.3
+  version: 0.1.4
 
 source:
   path: .
   use_gitignore: true 
 
 build:
-  number: 0
+  number: 1
   script: |
-    go build -o bin/devssh cmd/devssh
+    go build -o $PREFIX/bin/devssh ./cmd/devssh
 
 requirements:
   build:
