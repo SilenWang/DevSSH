@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"devssh/pkg/logging"
+	"github.com/loft-sh/log"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -24,16 +26,30 @@ type Tunnel struct {
 	listener net.Listener
 	closed   bool
 	mu       sync.Mutex
+	logger   log.Logger
 }
 
 func (t *Tunnel) GetConfig() *TunnelConfig {
 	return t.config
 }
 
+const (
+	copyBufferSize = 256 * 1024
+)
+
 func NewTunnel(client *ssh.Client, config *TunnelConfig) *Tunnel {
 	return &Tunnel{
 		config: config,
 		client: client,
+		logger: logging.InitQuiet(),
+	}
+}
+
+func NewTunnelWithLogger(client *ssh.Client, config *TunnelConfig, logger log.Logger) *Tunnel {
+	return &Tunnel{
+		config: config,
+		client: client,
+		logger: logger,
 	}
 }
 
@@ -91,25 +107,34 @@ func (t *Tunnel) handleConnection(localConn net.Conn) {
 	remoteAddr := net.JoinHostPort(t.config.RemoteHost, strconv.Itoa(t.config.RemotePort))
 	remoteConn, err := t.client.Dial("tcp", remoteAddr)
 	if err != nil {
+		t.logger.Errorf("Failed to dial remote %s: %v", remoteAddr, err)
 		return
 	}
 	defer remoteConn.Close()
 
-	// 双向转发数据
-	done := make(chan struct{}, 2)
+	done := make(chan error, 2)
 
 	go func() {
-		_, _ = io.Copy(remoteConn, localConn)
-		done <- struct{}{}
+		buf := make([]byte, copyBufferSize)
+		_, err := io.CopyBuffer(remoteConn, localConn, buf)
+		done <- err
 	}()
 
 	go func() {
-		_, _ = io.Copy(localConn, remoteConn)
-		done <- struct{}{}
+		buf := make([]byte, copyBufferSize)
+		_, err := io.CopyBuffer(localConn, remoteConn, buf)
+		done <- err
 	}()
 
-	<-done
-	<-done
+	err1 := <-done
+	err2 := <-done
+
+	if err1 != nil {
+		t.logger.Debugf("Forward local->remote error: %v", err1)
+	}
+	if err2 != nil {
+		t.logger.Debugf("Forward remote->local error: %v", err2)
+	}
 }
 
 func ParsePortForward(forward string) (localPort, remotePort int, err error) {
