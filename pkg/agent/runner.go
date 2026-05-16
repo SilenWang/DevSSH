@@ -96,7 +96,7 @@ func (r *Runner) Start(port int) error {
 	}
 
 	if port == 0 {
-		port = 10080
+		port = 10081
 	}
 
 	cmd := r.startCommand(port)
