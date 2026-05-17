@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 
 	"devssh/pkg/logging"
@@ -137,33 +136,4 @@ func (t *Tunnel) handleConnection(localConn net.Conn) {
 	}
 }
 
-func ParsePortForward(forward string) (localPort, remotePort int, err error) {
-	parts := strings.Split(forward, ":")
 
-	switch len(parts) {
-	case 1:
-		// 格式: 8080 (本地和远程端口相同)
-		port, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return 0, 0, fmt.Errorf("invalid port: %w", err)
-		}
-		return port, port, nil
-
-	case 2:
-		// 格式: 8080:80 (本地端口:远程端口)
-		localPort, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return 0, 0, fmt.Errorf("invalid local port: %w", err)
-		}
-
-		remotePort, err := strconv.Atoi(parts[1])
-		if err != nil {
-			return 0, 0, fmt.Errorf("invalid remote port: %w", err)
-		}
-
-		return localPort, remotePort, nil
-
-	default:
-		return 0, 0, fmt.Errorf("invalid port forward format: %s", forward)
-	}
-}

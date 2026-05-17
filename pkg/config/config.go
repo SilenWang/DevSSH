@@ -5,11 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"time"
-
-	"devssh/pkg/ssh"
 )
 
 const (
@@ -24,26 +20,13 @@ type HostConfig struct {
 	KeyPath  string `json:"key_path,omitempty"`
 }
 
-type ConnectionConfig struct {
-	ID        string    `json:"id"`
-	Host      string    `json:"host"`
-	Port      string    `json:"port"`
-	Username  string    `json:"username"`
-	IDE       string    `json:"ide"`
-	LocalPort int       `json:"local_port"`
-	StartedAt time.Time `json:"started_at"`
-	PID       int       `json:"pid,omitempty"`
-}
-
 type Config struct {
-	Hosts       map[string]HostConfig       `json:"hosts"`
-	Connections map[string]ConnectionConfig `json:"connections"`
+	Hosts map[string]HostConfig `json:"hosts"`
 }
 
 func NewConfig() *Config {
 	return &Config{
-		Hosts:       make(map[string]HostConfig),
-		Connections: make(map[string]ConnectionConfig),
+		Hosts: make(map[string]HostConfig),
 	}
 }
 
@@ -120,73 +103,6 @@ func (c *Config) ListHosts() []HostConfig {
 	return hosts
 }
 
-// ImportSSHHosts 从SSH配置文件中导入主机
-func (c *Config) ImportSSHHosts() (int, error) {
-	parser := ssh.NewSSHConfigParser()
-	sshHosts, err := parser.Parse()
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse SSH config: %w", err)
-	}
-
-	imported := 0
-	for hostName, sshHost := range sshHosts {
-		// 跳过通配符主机
-		if strings.Contains(hostName, "*") {
-			continue
-		}
-
-		// 检查是否已存在
-		if _, exists := c.Hosts[hostName]; !exists {
-			hostConfig := HostConfig{
-				Name:     hostName,
-				Host:     sshHost.HostName,
-				Port:     sshHost.Port,
-				Username: sshHost.User,
-				KeyPath:  sshHost.IdentityFile,
-			}
-
-			// 如果没有指定主机名，使用主机别名
-			if hostConfig.Host == "" {
-				hostConfig.Host = hostName
-			}
-
-			c.Hosts[hostName] = hostConfig
-			imported++
-		}
-	}
-
-	if imported > 0 {
-		if err := c.Save(); err != nil {
-			return imported, fmt.Errorf("imported %d hosts but failed to save config: %w", imported, err)
-		}
-	}
-
-	return imported, nil
-}
-
-func (c *Config) AddConnection(conn ConnectionConfig) error {
-	c.Connections[conn.ID] = conn
-	return c.Save()
-}
-
-func (c *Config) RemoveConnection(id string) error {
-	delete(c.Connections, id)
-	return c.Save()
-}
-
-func (c *Config) GetConnection(id string) (ConnectionConfig, bool) {
-	conn, exists := c.Connections[id]
-	return conn, exists
-}
-
-func (c *Config) ListConnections() []ConnectionConfig {
-	connections := make([]ConnectionConfig, 0, len(c.Connections))
-	for _, conn := range c.Connections {
-		connections = append(connections, conn)
-	}
-	return connections
-}
-
 func getConfigPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -228,25 +144,4 @@ func GetDevSSHDownloadURL(version, os, arch string) string {
 	return url
 }
 
-func GetLocalOS() string {
-	return getGOOS()
-}
 
-func GetLocalArch() string {
-	return getGOArch()
-}
-
-func getGOOS() string {
-	return "linux"
-}
-
-func getGOArch() string {
-	switch runtime.GOARCH {
-	case "amd64":
-		return "amd64"
-	case "arm64":
-		return "arm64"
-	default:
-		return runtime.GOARCH
-	}
-}

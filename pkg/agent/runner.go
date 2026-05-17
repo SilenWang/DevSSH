@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"devssh/pkg/download"
 	"devssh/pkg/logging"
 )
 
@@ -63,7 +64,7 @@ func (r *Runner) Install(version string) error {
 
 	logging.Infof("Downloading openvscode-server...")
 
-	url := r.getDownloadURL(version)
+	url := download.GetVSCodeDownloadURL(version, runtime.GOOS, runtime.GOARCH)
 	logging.Infof("%s", url)
 	downloadPath := filepath.Join(r.workDir, fmt.Sprintf("openvscode-server-%s.tar.gz", version))
 
@@ -167,30 +168,6 @@ func (r *Runner) IsRunning() bool {
 
 	err := syscall.Kill(r.serverPID, 0)
 	return err == nil
-}
-
-func (r *Runner) getDownloadURL(version string) string {
-	os := runtime.GOOS
-	arch := runtime.GOARCH
-
-	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-%s/openvscode-server-%s", version, version)
-
-	switch os {
-	case "linux":
-		if arch == "amd64" {
-			return baseURL + "-linux-x64.tar.gz"
-		} else if arch == "arm64" {
-			return baseURL + "-linux-arm64.tar.gz"
-		}
-	case "darwin":
-		if arch == "amd64" {
-			return baseURL + "-darwin-x64.tar.gz"
-		} else if arch == "arm64" {
-			return baseURL + "-darwin-arm64.tar.gz"
-		}
-	}
-
-	return baseURL + fmt.Sprintf("-%s-%s.tar.gz", os, arch)
 }
 
 func (r *Runner) download(url, destPath string) error {
