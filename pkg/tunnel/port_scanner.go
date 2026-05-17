@@ -25,73 +25,6 @@ func NewPortScanner(sshClient *ssh.Client) *PortScanner {
 	}
 }
 
-func (s *PortScanner) ScanCommonPorts() ([]PortInfo, error) {
-	commonPorts := []int{
-		// Web servers
-		80,   // HTTP
-		443,  // HTTPS
-		3000, // Node.js, React
-		8080, // Alternative HTTP
-		8000, // Django, Flask
-		8888, // Jupyter
-
-		// Development servers
-		3001, // React (alt)
-		4200, // Angular
-		5000, // Flask
-		5173, // Vite
-		6000, // X11
-
-		// Database
-		3306,  // MySQL
-		5432,  // PostgreSQL
-		27017, // MongoDB
-		6379,  // Redis
-
-		// Message brokers
-		5672, // RabbitMQ
-		9092, // Kafka
-
-		// Other services
-		22, // SSH
-		21, // FTP
-		25, // SMTP
-		53, // DNS
-	}
-
-	var openPorts []PortInfo
-
-	for _, port := range commonPorts {
-		if s.isPortOpen(port) {
-			info := PortInfo{
-				Port:     port,
-				Protocol: "tcp",
-				Service:  s.guessService(port),
-			}
-			openPorts = append(openPorts, info)
-		}
-	}
-
-	return openPorts, nil
-}
-
-func (s *PortScanner) ScanPortRange(start, end int) ([]PortInfo, error) {
-	var openPorts []PortInfo
-
-	for port := start; port <= end; port++ {
-		if s.isPortOpen(port) {
-			info := PortInfo{
-				Port:     port,
-				Protocol: "tcp",
-				Service:  s.guessService(port),
-			}
-			openPorts = append(openPorts, info)
-		}
-	}
-
-	return openPorts, nil
-}
-
 func (s *PortScanner) GetListeningPorts() ([]PortInfo, error) {
 	// 使用 netstat 或 ss 命令获取监听端口
 	commands := []string{
@@ -114,24 +47,6 @@ func (s *PortScanner) GetListeningPorts() ([]PortInfo, error) {
 	}
 
 	return s.parseNetstatOutput(output), nil
-}
-
-func (s *PortScanner) isPortOpen(port int) bool {
-	// 使用 nc 或 telnet 检查端口
-	checkCommands := []string{
-		fmt.Sprintf("timeout 1 bash -c '</dev/tcp/localhost/%d' 2>/dev/null && echo open", port),
-		fmt.Sprintf("nc -z localhost %d 2>/dev/null && echo open", port),
-		fmt.Sprintf("timeout 1 telnet localhost %d 2>/dev/null | grep -q Connected && echo open", port),
-	}
-
-	for _, cmd := range checkCommands {
-		output, err := s.sshClient.RunCommand(cmd)
-		if err == nil && strings.Contains(output, "open") {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (s *PortScanner) parseNetstatOutput(output string) []PortInfo {
@@ -255,24 +170,4 @@ func (s *PortScanner) DetectWebServices() ([]PortInfo, error) {
 	return webPorts, nil
 }
 
-func (s *PortScanner) CheckServiceHealth(port int) (bool, error) {
-	// 尝试连接并发送简单的 HTTP 请求
-	checkScript := fmt.Sprintf(`
-timeout 2 bash -c '
-if command -v curl &> /dev/null; then
-	curl -s -f http://localhost:%d > /dev/null && echo "healthy"
-elif command -v wget &> /dev/null; then
-	wget -q -O /dev/null http://localhost:%d && echo "healthy"
-else
-	# 简单 TCP 连接检查
-	timeout 1 bash -c "</dev/tcp/localhost/%d" 2>/dev/null && echo "healthy"
-fi
-'`, port, port, port)
 
-	output, err := s.sshClient.RunCommand(checkScript)
-	if err != nil {
-		return false, nil
-	}
-
-	return strings.Contains(output, "healthy"), nil
-}

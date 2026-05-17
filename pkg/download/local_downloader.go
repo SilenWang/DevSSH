@@ -55,12 +55,16 @@ func (d *LocalDownloader) DownloadVSCode(version, os, arch string) (string, erro
 		version = "v1.105.1"
 	}
 
-	url := d.getVSCodeDownloadURL(version, os, arch)
+	url := d.GetVSCodeDownloadURL(version, os, arch)
 	d.logger.Infof("Downloading VSCode from %s", url)
 	return d.Download(url)
 }
 
-func (d *LocalDownloader) getVSCodeDownloadURL(version, os, arch string) string {
+func (d *LocalDownloader) GetVSCodeDownloadURL(version, os, arch string) string {
+	return GetVSCodeDownloadURL(version, os, arch)
+}
+
+func GetVSCodeDownloadURL(version, os, arch string) string {
 	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-%s/openvscode-server-%s", version, version)
 
 	switch os {
@@ -69,6 +73,12 @@ func (d *LocalDownloader) getVSCodeDownloadURL(version, os, arch string) string 
 			return baseURL + "-linux-x64.tar.gz"
 		} else if arch == "arm64" {
 			return baseURL + "-linux-arm64.tar.gz"
+		}
+	case "darwin":
+		if arch == "amd64" {
+			return baseURL + "-darwin-x64.tar.gz"
+		} else if arch == "arm64" {
+			return baseURL + "-darwin-arm64.tar.gz"
 		}
 	}
 
