@@ -27,7 +27,7 @@ Examples:
   devssh agent install
   devssh agent install --version v1.105.1
   devssh agent install --local-tar /path/to/openvscode.tar.gz
-  devssh agent start --port 10080
+  devssh agent start --port 10081
   devssh agent stop
   devssh agent uninstall
   devssh agent is-running
@@ -127,7 +127,7 @@ If VSCode is already running, this command will be skipped.`,
 		},
 	}
 
-	cmd.Flags().IntVarP(&port, "port", "p", 10080, "Port to start VSCode on")
+	cmd.Flags().IntVarP(&port, "port", "p", 10081, "Port to start VSCode on")
 
 	return cmd
 }
