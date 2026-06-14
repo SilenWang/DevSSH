@@ -20,15 +20,15 @@ import (
 )
 
 const (
-	DefaultVersion = "v1.105.1"
+	DefaultVersion = "1.121.03429"
 )
 
 type Runner struct {
-	workDir       string
-	logFile       string
-	openvscodeDir string
-	serverPath    string
-	serverPID     int
+	workDir    string
+	logFile    string
+	vscodiumDir string
+	serverPath string
+	serverPID  int
 }
 
 func NewRunner() (*Runner, error) {
@@ -43,13 +43,13 @@ func NewRunner() (*Runner, error) {
 	}
 
 	logFile := filepath.Join(workDir, "agent.log")
-	openvscodeDir := filepath.Join(workDir, "openvscode")
+	vscodiumDir := filepath.Join(workDir, "vscodium")
 
 	return &Runner{
-		workDir:       workDir,
-		logFile:       logFile,
-		openvscodeDir: openvscodeDir,
-		serverPath:    filepath.Join(openvscodeDir, "bin", "openvscode-server"),
+		workDir:     workDir,
+		logFile:     logFile,
+		vscodiumDir: vscodiumDir,
+		serverPath:  filepath.Join(vscodiumDir, "bin", "codium-server"),
 	}, nil
 }
 
@@ -62,11 +62,11 @@ func (r *Runner) Install(version string) error {
 		return nil
 	}
 
-	logging.Infof("Downloading openvscode-server...")
+	logging.Infof("Downloading VSCodium reh-web...")
 
 	url := download.GetVSCodeDownloadURL(version, runtime.GOOS, runtime.GOARCH)
 	logging.Infof("%s", url)
-	downloadPath := filepath.Join(r.workDir, fmt.Sprintf("openvscode-server-%s.tar.gz", version))
+	downloadPath := filepath.Join(r.workDir, fmt.Sprintf("vscodium-reh-web-%s.tar.gz", version))
 
 	if err := r.download(url, downloadPath); err != nil {
 		return fmt.Errorf("failed to download: %w", err)
@@ -74,8 +74,8 @@ func (r *Runner) Install(version string) error {
 
 	logging.Infof("Extracting...")
 
-	if err := os.MkdirAll(r.openvscodeDir, 0755); err != nil {
-		return fmt.Errorf("failed to create openvscode directory: %w", err)
+	if err := os.MkdirAll(r.vscodiumDir, 0755); err != nil {
+		return fmt.Errorf("failed to create vscodium directory: %w", err)
 	}
 
 	if err := r.extract(downloadPath); err != nil {
@@ -219,7 +219,7 @@ func (r *Runner) extract(archivePath string) error {
 
 		firstComponent := strings.Split(name, "/")[0]
 
-		if strings.HasPrefix(name, "openvscode-server-") && strings.Contains(name, "/") {
+		if strings.HasPrefix(name, "vscodium-reh-web-") && strings.Contains(name, "/") {
 			parts := strings.SplitN(name, "/", 2)
 			if len(parts) > 1 {
 				name = parts[1]
@@ -230,7 +230,7 @@ func (r *Runner) extract(archivePath string) error {
 			continue
 		}
 
-		targetPath := filepath.Join(r.openvscodeDir, name)
+		targetPath := filepath.Join(r.vscodiumDir, name)
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -256,7 +256,7 @@ func (r *Runner) extract(archivePath string) error {
 		case tar.TypeSymlink:
 			linkTarget := header.Linkname
 
-			if strings.HasPrefix(linkTarget, "openvscode-server-") {
+			if strings.HasPrefix(linkTarget, "vscodium-reh-web-") {
 				parts := strings.SplitN(linkTarget, "/", 2)
 				if len(parts) > 1 {
 					linkTarget = parts[1]
@@ -264,7 +264,7 @@ func (r *Runner) extract(archivePath string) error {
 			}
 
 			if !filepath.IsAbs(linkTarget) {
-				linkTarget = filepath.Join(r.openvscodeDir, linkTarget)
+				linkTarget = filepath.Join(r.vscodiumDir, linkTarget)
 			}
 
 			dir := filepath.Dir(targetPath)
@@ -362,10 +362,10 @@ func (r *Runner) InstallFromTar(tarPath string) error {
 		return nil
 	}
 
-	logging.Infof("Installing VSCode from local tar.gz...")
+	logging.Infof("Installing VSCodium from local tar.gz...")
 
-	if err := os.MkdirAll(r.openvscodeDir, 0755); err != nil {
-		return fmt.Errorf("failed to create openvscode directory: %w", err)
+	if err := os.MkdirAll(r.vscodiumDir, 0755); err != nil {
+		return fmt.Errorf("failed to create vscodium directory: %w", err)
 	}
 
 	if err := r.extract(tarPath); err != nil {
@@ -384,8 +384,8 @@ func (r *Runner) Uninstall() error {
 	}
 
 	if r.IsInstalled() {
-		if err := os.RemoveAll(r.openvscodeDir); err != nil {
-			return fmt.Errorf("failed to remove openvscode directory: %w", err)
+		if err := os.RemoveAll(r.vscodiumDir); err != nil {
+			return fmt.Errorf("failed to remove vscodium directory: %w", err)
 		}
 	}
 
@@ -399,8 +399,8 @@ func (r *Runner) GetWorkDir() string {
 	return r.workDir
 }
 
-func (r *Runner) GetOpenVSCodeDir() string {
-	return r.openvscodeDir
+func (r *Runner) GetVSCodiumDir() string {
+	return r.vscodiumDir
 }
 
 func (r *Runner) GetServerPath() string {

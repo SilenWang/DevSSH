@@ -52,7 +52,7 @@ func (d *LocalDownloader) Download(url string) (string, error) {
 
 func (d *LocalDownloader) DownloadVSCode(version, os, arch string) (string, error) {
 	if version == "" {
-		version = "v1.105.1"
+		version = "1.121.03429"
 	}
 
 	url := d.GetVSCodeDownloadURL(version, os, arch)
@@ -65,24 +65,24 @@ func (d *LocalDownloader) GetVSCodeDownloadURL(version, os, arch string) string 
 }
 
 func GetVSCodeDownloadURL(version, os, arch string) string {
-	baseURL := fmt.Sprintf("https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-%s/openvscode-server-%s", version, version)
+	baseURL := fmt.Sprintf("https://github.com/VSCodium/vscodium/releases/download/%s/vscodium-reh-web", version)
 
 	switch os {
 	case "linux":
 		if arch == "amd64" {
-			return baseURL + "-linux-x64.tar.gz"
+			return baseURL + "-linux-x64-" + version + ".tar.gz"
 		} else if arch == "arm64" {
-			return baseURL + "-linux-arm64.tar.gz"
+			return baseURL + "-linux-arm64-" + version + ".tar.gz"
 		}
 	case "darwin":
 		if arch == "amd64" {
-			return baseURL + "-darwin-x64.tar.gz"
+			return baseURL + "-darwin-x64-" + version + ".tar.gz"
 		} else if arch == "arm64" {
-			return baseURL + "-darwin-arm64.tar.gz"
+			return baseURL + "-darwin-arm64-" + version + ".tar.gz"
 		}
 	}
 
-	return baseURL + fmt.Sprintf("-%s-%s.tar.gz", os, arch)
+	return baseURL + fmt.Sprintf("-%s-%s-%s.tar.gz", os, arch, version)
 }
 
 func (d *LocalDownloader) getCachePath(url string) (string, error) {

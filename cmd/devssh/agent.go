@@ -13,10 +13,10 @@ func newAgentCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "agent",
 		Short: "Manage VSCode installation and running",
-		Long: `Manage VSCode (openvscode-server) installation and running on the current machine.
+		Long: `Manage VSCode (VSCodium reh-web) installation and running on the current machine.
 
 Commands:
-  install     Download and install openvscode-server
+  install     Download and install VSCodium reh-web
   start       Start VSCode
   stop        Stop VSCode
   uninstall   Uninstall VSCode and clean up
@@ -25,8 +25,8 @@ Commands:
 
 Examples:
   devssh agent install
-  devssh agent install --version v1.105.1
-  devssh agent install --local-tar /path/to/openvscode.tar.gz
+  devssh agent install --version 1.121.03429
+  devssh agent install --local-tar /path/to/vscodium-reh-web.tar.gz
   devssh agent start --port 10081
   devssh agent stop
   devssh agent uninstall
@@ -55,8 +55,8 @@ func newAgentInstallCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "install",
-		Short: "Download and install openvscode-server",
-		Long: `Download and install openvscode-server to the working directory.
+		Short: "Download and install VSCodium reh-web",
+		Long: `Download and install VSCodium reh-web to the working directory.
 If already installed, this command will be skipped.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
@@ -86,7 +86,7 @@ If already installed, this command will be skipped.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&version, "version", "v1.105.1", "VSCode version to install")
+	cmd.Flags().StringVar(&version, "version", "1.121.03429", "VSCode version to install")
 	cmd.Flags().StringVar(&localTar, "local-tar", "", "Path to local tar.gz file (use this instead of downloading)")
 
 	return cmd
@@ -98,7 +98,7 @@ func newAgentStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start VSCode",
-		Long: `Start openvscode-server on the specified port.
+		Long: `Start VSCodium reh-web on the specified port.
 If VSCode is already running, this command will be skipped.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
@@ -195,7 +195,7 @@ func newAgentIsRunningCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "is-running",
 		Short: "Check if VSCode is running",
-		Long:  `Check if VSCode (openvscode-server) is currently running.`,
+		Long:  `Check if VSCode (VSCodium reh-web) is currently running.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
 			if err != nil {
@@ -218,7 +218,7 @@ func newAgentGetPortCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get-port",
 		Short: "Get the port VSCode is running on",
-		Long:  `Get the port number that VSCode (openvscode-server) is running on.`,
+		Long:  `Get the port number that VSCode (VSCodium reh-web) is running on.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
 			if err != nil {

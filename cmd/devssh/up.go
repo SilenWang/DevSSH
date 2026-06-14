@@ -165,7 +165,7 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	}
 
 	logger.Infof("Checking VSCode installation on remote...")
-	vscodeCheckCmd := "test -f ~/.devssh/openvscode/bin/openvscode-server && echo 'installed' || echo 'not_installed'"
+	vscodeCheckCmd := "test -f ~/.devssh/vscodium/bin/codium-server && echo 'installed' || echo 'not_installed'"
 	checkOutput, checkErr := client.RunCommand(vscodeCheckCmd)
 	if checkErr != nil {
 		return fmt.Errorf("failed to check remote VSCode: %w", checkErr)
@@ -178,13 +178,13 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 			return fmt.Errorf("failed to download VSCode: %w", err)
 		}
 
-		logger.Infof("Uploading VSCode to remote...")
-		if err := uploadToRemote(client, vscodePath, "~/.devssh/openvscode.tar.gz"); err != nil {
-			return fmt.Errorf("failed to upload VSCode: %w", err)
+		logger.Infof("Uploading VSCodium to remote...")
+		if err := uploadToRemote(client, vscodePath, "~/.devssh/vscodium-reh-web.tar.gz"); err != nil {
+			return fmt.Errorf("failed to upload VSCodium: %w", err)
 		}
 
-		logger.Infof("Installing VSCode on remote...")
-		if _, err := runRemoteAgentCommand(client, "install --local-tar ~/.devssh/openvscode.tar.gz"); err != nil {
+		logger.Infof("Installing VSCodium on remote...")
+		if _, err := runRemoteAgentCommand(client, "install --local-tar ~/.devssh/vscodium-reh-web.tar.gz"); err != nil {
 			return fmt.Errorf("failed to install VSCode: %w", err)
 		}
 	} else {
