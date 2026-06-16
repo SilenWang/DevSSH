@@ -149,6 +149,16 @@ func (m *TunnelManager) GetTunnel(name string) (*ssh.Tunnel, bool) {
 	return tunnel, exists
 }
 
+func (m *TunnelManager) UpdateSSHClient(client *ssh.Client) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, tunnel := range m.tunnels {
+		tunnel.SetSSHClient(client.GetClient())
+	}
+	m.logger.Infof("Updated all tunnels with new SSH client")
+}
+
 type ForwardConfig struct {
 	LocalPort  int
 	RemotePort int

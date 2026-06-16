@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"devssh/pkg/logging"
@@ -14,19 +16,32 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+const (
+	defaultKeepaliveInterval = 30 * time.Second
+	healthCheckTimeout       = 10 * time.Second
+)
+
 type Config struct {
-	Host     string
-	Port     string
-	Username string
-	KeyPath  string
-	Password string
-	Timeout  time.Duration
+	Host              string
+	Port              string
+	Username          string
+	KeyPath           string
+	Password          string
+	Timeout           time.Duration
+	KeepaliveInterval time.Duration
 }
 
 type Client struct {
 	config *Config
 	client *ssh.Client
 	logger log.Logger
+
+	mu              sync.Mutex
+	connected       atomic.Bool
+	keepaliveStop   chan struct{}
+	keepaliveWg     sync.WaitGroup
+	onReconnect     func()
+	healthCheckFn   func() bool
 }
 
 func NewClient(config *Config) *Client {
@@ -42,6 +57,33 @@ func NewClientWithLogger(config *Config, logger log.Logger) *Client {
 		config: config,
 		logger: logger,
 	}
+}
+
+func (c *Client) SetReconnectHandler(handler func()) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onReconnect = handler
+}
+
+func (c *Client) EnableKeepalive() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.config.KeepaliveInterval <= 0 {
+		c.config.KeepaliveInterval = defaultKeepaliveInterval
+	}
+}
+
+func (c *Client) DisableKeepalive() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.keepaliveStop = nil
+	c.config.KeepaliveInterval = 0
+}
+
+func (c *Client) SetHealthCheckFn(fn func() bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.healthCheckFn = fn
 }
 
 // NewClientFromSSHConfig 从SSH配置文件创建客户端
@@ -77,15 +119,40 @@ func NewClientFromSSHConfigWithLogger(hostName string, overrideConfig *Config, l
 		if overrideConfig.Timeout > 0 {
 			config.Timeout = overrideConfig.Timeout
 		}
+		if overrideConfig.KeepaliveInterval > 0 {
+			config.KeepaliveInterval = overrideConfig.KeepaliveInterval
+		}
 	}
 
 	return NewClientWithLogger(config, logger), nil
 }
 
 func (c *Client) Connect() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	client, err := c.dial()
+	if err != nil {
+		return err
+	}
+
+	c.client = client
+	c.connected.Store(true)
+	c.logger.Infof("SSH connection established successfully")
+
+	// 启动心跳检测
+	interval := c.config.KeepaliveInterval
+	if interval > 0 {
+		c.startKeepaliveLocked(interval)
+	}
+
+	return nil
+}
+
+func (c *Client) dial() (*ssh.Client, error) {
 	authMethods, err := c.getAuthMethods()
 	if err != nil {
-		return fmt.Errorf("failed to get auth methods: %w", err)
+		return nil, fmt.Errorf("failed to get auth methods: %w", err)
 	}
 
 	sshConfig := &ssh.ClientConfig{
@@ -106,7 +173,6 @@ func (c *Client) Connect() error {
 	address := net.JoinHostPort(c.config.Host, c.config.Port)
 	c.logger.Infof("Attempting to connect to %s as user '%s' with timeout %v", address, c.config.Username, c.config.Timeout)
 
-	// 显示使用的认证方法
 	if c.config.Password != "" {
 		c.logger.Infof("Using password authentication (password provided)")
 	}
@@ -114,37 +180,141 @@ func (c *Client) Connect() error {
 		c.logger.Infof("Using private key: %s", c.config.KeyPath)
 	}
 
-	// 先测试TCP连接
 	tcpConn, tcpErr := net.DialTimeout("tcp", address, c.config.Timeout)
 	if tcpErr != nil {
-		return fmt.Errorf("TCP connection failed: %w", tcpErr)
+		return nil, fmt.Errorf("TCP connection failed: %w", tcpErr)
 	}
 	tcpConn.Close()
 	c.logger.Infof("TCP connection successful, attempting SSH handshake...")
 
-	client, err := ssh.Dial("tcp", address, sshConfig)
+	cli, err := ssh.Dial("tcp", address, sshConfig)
 	if err != nil {
-		return fmt.Errorf("failed to dial SSH: %w", err)
+		return nil, fmt.Errorf("failed to dial SSH: %w", err)
+	}
+	return cli, nil
+}
+
+func (c *Client) startKeepaliveLocked(interval time.Duration) {
+	if c.keepaliveStop != nil {
+		return
+	}
+	c.keepaliveStop = make(chan struct{})
+	c.keepaliveWg.Add(1)
+	go c.keepaliveLoop(interval)
+}
+
+func (c *Client) keepaliveLoop(interval time.Duration) {
+	defer c.keepaliveWg.Done()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.keepaliveStop:
+			return
+		case <-ticker.C:
+			c.mu.Lock()
+			currentClient := c.client
+			c.mu.Unlock()
+
+			if currentClient == nil {
+				continue
+			}
+
+			if !c.checkHealth(currentClient) {
+				c.logger.Warnf("Connection health check failed, attempting reconnect...")
+				if err := c.reconnect(); err != nil {
+					c.logger.Errorf("Reconnect failed: %v", err)
+					continue
+				}
+				c.logger.Infof("Reconnected successfully")
+
+				c.mu.Lock()
+				handler := c.onReconnect
+				c.mu.Unlock()
+
+				if handler != nil {
+					handler()
+				}
+			}
+		}
+	}
+}
+
+func (c *Client) checkHealth(cli *ssh.Client) bool {
+	if c.healthCheckFn != nil {
+		return c.healthCheckFn()
 	}
 
-	c.client = client
-	c.logger.Infof("SSH connection established successfully")
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := cli.SendRequest("keepalive@openssh.com", true, nil)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		return err == nil
+	case <-time.After(healthCheckTimeout):
+		return false
+	}
+}
+
+func (c *Client) reconnect() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	oldClient := c.client
+	c.client = nil
+	c.connected.Store(false)
+
+	if oldClient != nil {
+		oldClient.Close()
+	}
+
+	newClient, err := c.dial()
+	if err != nil {
+		return fmt.Errorf("reconnect failed: %w", err)
+	}
+
+	c.client = newClient
+	c.connected.Store(true)
 	return nil
 }
 
 func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.keepaliveStop != nil {
+		close(c.keepaliveStop)
+		c.keepaliveStop = nil
+	}
+	c.keepaliveWg.Wait()
+
+	c.connected.Store(false)
 	if c.client != nil {
-		return c.client.Close()
+		err := c.client.Close()
+		c.client = nil
+		return err
 	}
 	return nil
 }
 
+func (c *Client) getClient() *ssh.Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.client
+}
+
 func (c *Client) RunCommand(cmd string) (string, error) {
-	if c.client == nil {
+	cli := c.getClient()
+	if cli == nil {
 		return "", fmt.Errorf("not connected")
 	}
 
-	session, err := c.client.NewSession()
+	session, err := cli.NewSession()
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %w", err)
 	}
@@ -159,11 +329,12 @@ func (c *Client) RunCommand(cmd string) (string, error) {
 }
 
 func (c *Client) RunCommandWithOutput(cmd string, stdout, stderr io.Writer) error {
-	if c.client == nil {
+	cli := c.getClient()
+	if cli == nil {
 		return fmt.Errorf("not connected")
 	}
 
-	session, err := c.client.NewSession()
+	session, err := cli.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create session: %w", err)
 	}
@@ -176,10 +347,11 @@ func (c *Client) RunCommandWithOutput(cmd string, stdout, stderr io.Writer) erro
 }
 
 func (c *Client) NewSession() (*ssh.Session, error) {
-	if c.client == nil {
+	cli := c.getClient()
+	if cli == nil {
 		return nil, fmt.Errorf("not connected")
 	}
-	return c.client.NewSession()
+	return cli.NewSession()
 }
 
 func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
@@ -265,15 +437,16 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 }
 
 func (c *Client) IsConnected() bool {
-	return c.client != nil
+	return c.connected.Load()
 }
 
 func (c *Client) GetClient() *ssh.Client {
-	return c.client
+	return c.getClient()
 }
 
-// SetLogger 设置logger
 func (c *Client) SetLogger(logger log.Logger) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.logger = logger
 }
 
@@ -281,7 +454,6 @@ func (c *Client) GetConfig() *Config {
 	return c.config
 }
 
-// NewSCPClient 创建SCP客户端
 func (c *Client) NewSCPClient() *SCPClient {
 	return NewSCPClient(c)
 }

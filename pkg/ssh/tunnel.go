@@ -29,7 +29,15 @@ type Tunnel struct {
 }
 
 func (t *Tunnel) GetConfig() *TunnelConfig {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.config
+}
+
+func (t *Tunnel) SetSSHClient(client *ssh.Client) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.client = client
 }
 
 const (
