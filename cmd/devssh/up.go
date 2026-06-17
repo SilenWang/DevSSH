@@ -288,6 +288,11 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 		return fmt.Errorf("failed to create port forwards: %w", err)
 	}
 
+	client.SetReconnectHandler(func() {
+		logger.Infof("Connection re-established, updating tunnels...")
+		tunnelManager.UpdateSSHClient(client)
+	})
+
 	tunnels := tunnelManager.ListTunnels()
 	logger.Infof("Active port forwards:")
 	for name, info := range tunnels {

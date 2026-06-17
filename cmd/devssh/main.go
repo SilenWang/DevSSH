@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	version = "0.1.7"
+	version = "0.1.8"
 	logger  log.Logger
 )
 
@@ -77,16 +77,18 @@ func main() {
 
 func newUpCmd() *cobra.Command {
 	var (
-		user     string
-		port     string
-		keyPath  string
-		password string
-		ideType  string
-		idePort  int
-		version  string
-		forwards []string
-		auto     bool
-		timeout  int
+		user             string
+		port             string
+		keyPath          string
+		password         string
+		ideType          string
+		idePort          int
+		version          string
+		forwards         []string
+		auto             bool
+		timeout          int
+		keepalive        bool
+		keepaliveInt     int
 	)
 
 	cmd := &cobra.Command{
@@ -106,13 +108,17 @@ func newUpCmd() *cobra.Command {
 				overrideConfig := &ssh.Config{
 					Host: host,
 
-					Username: user,
-					KeyPath:  keyPath,
-					Password: password,
-					Timeout:  time.Duration(timeout) * time.Second,
+					Username:          user,
+					KeyPath:           keyPath,
+					Password:          password,
+					Timeout:           time.Duration(timeout) * time.Second,
+					KeepaliveInterval: time.Duration(keepaliveInt) * time.Second,
 				}
 				if port != "22" {
 					overrideConfig.Port = port
+				}
+				if !keepalive {
+					overrideConfig.KeepaliveInterval = 0
 				}
 				client, err = ssh.NewClientFromSSHConfigWithLogger(host, overrideConfig, logger)
 				if err != nil {
@@ -136,12 +142,16 @@ func newUpCmd() *cobra.Command {
 				}
 
 				sshConfig := &ssh.Config{
-					Host:     host,
-					Port:     port,
-					Username: user,
-					KeyPath:  keyPath,
-					Password: password,
-					Timeout:  time.Duration(timeout) * time.Second,
+					Host:              host,
+					Port:              port,
+					Username:          user,
+					KeyPath:           keyPath,
+					Password:          password,
+					Timeout:           time.Duration(timeout) * time.Second,
+					KeepaliveInterval: time.Duration(keepaliveInt) * time.Second,
+				}
+				if !keepalive {
+					sshConfig.KeepaliveInterval = 0
 				}
 
 				client = ssh.NewClientWithLogger(sshConfig, logger)
@@ -154,6 +164,10 @@ func newUpCmd() *cobra.Command {
 			}
 			defer client.Close()
 			logger.Infof("Connected successfully")
+
+			if keepalive {
+				logger.Infof("Keepalive enabled (interval: %ds)", keepaliveInt)
+			}
 
 			if idePort == 0 {
 				idePort = 10081
@@ -173,19 +187,23 @@ func newUpCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&forwards, "forward", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")
+	cmd.Flags().BoolVar(&keepalive, "keepalive", true, "Enable SSH connection keepalive")
+	cmd.Flags().IntVar(&keepaliveInt, "keepalive-interval", 30, "Keepalive interval in seconds")
 
 	return cmd
 }
 
 func newForwardCmd() *cobra.Command {
 	var (
-		user     string
-		port     string
-		keyPath  string
-		password string
-		forwards []string
-		auto     bool
-		timeout  int
+		user             string
+		port             string
+		keyPath          string
+		password         string
+		forwards         []string
+		auto             bool
+		timeout          int
+		keepalive        bool
+		keepaliveInt     int
 	)
 
 	cmd := &cobra.Command{
@@ -193,11 +211,9 @@ func newForwardCmd() *cobra.Command {
 		Short: "Forward ports from remote host to local machine",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// 获取logger
 			logger := logging.GetGlobalLogger()
 			host := args[0]
 
-			// Parse host if it contains user@host format
 			if strings.Contains(host, "@") {
 				parts := strings.Split(host, "@")
 				if len(parts) == 2 {
@@ -209,35 +225,33 @@ func newForwardCmd() *cobra.Command {
 			var client *ssh.Client
 			var err error
 
-			// 检查是否是SSH配置文件中的主机
 			parser := ssh.NewSSHConfigParser()
 			_, sshErr := parser.GetHost(host)
 			if sshErr == nil {
-				// 从SSH配置文件创建客户端，使用命令行参数覆盖
 				overrideConfig := &ssh.Config{
 					Host: host,
 
-					Username: user,
-					KeyPath:  keyPath,
-					Password: password,
-					Timeout:  time.Duration(timeout) * time.Second,
+					Username:          user,
+					KeyPath:           keyPath,
+					Password:          password,
+					Timeout:           time.Duration(timeout) * time.Second,
+					KeepaliveInterval: time.Duration(keepaliveInt) * time.Second,
 				}
-				// 只有当用户显式提供了-p参数时才覆盖端口
 				if port != "22" {
 					overrideConfig.Port = port
+				}
+				if !keepalive {
+					overrideConfig.KeepaliveInterval = 0
 				}
 				client, err = ssh.NewClientFromSSHConfigWithLogger(host, overrideConfig, logger)
 				if err != nil {
 					return fmt.Errorf("failed to create client from SSH config: %w", err)
 				}
 			} else {
-				// 检查是否是特殊主机模式的错误
 				if strings.Contains(sshErr.Error(), "is a special pattern") {
 					return fmt.Errorf("cannot connect to %s: %v", host, sshErr)
 				}
 
-				// 如果不是SSH配置文件中的主机，使用传统方式
-				// Parse host if it contains user@host format
 				if strings.Contains(host, "@") {
 					parts := strings.Split(host, "@")
 					if len(parts) == 2 {
@@ -246,19 +260,21 @@ func newForwardCmd() *cobra.Command {
 					}
 				}
 
-				// 检查必需参数
 				if user == "" {
 					return fmt.Errorf("username is required when host is not in SSH config file. Use -u flag or user@host format")
 				}
 
-				// Create SSH config
 				sshConfig := &ssh.Config{
-					Host:     host,
-					Port:     port,
-					Username: user,
-					KeyPath:  keyPath,
-					Password: password,
-					Timeout:  time.Duration(timeout) * time.Second,
+					Host:              host,
+					Port:              port,
+					Username:          user,
+					KeyPath:           keyPath,
+					Password:          password,
+					Timeout:           time.Duration(timeout) * time.Second,
+					KeepaliveInterval: time.Duration(keepaliveInt) * time.Second,
+				}
+				if !keepalive {
+					sshConfig.KeepaliveInterval = 0
 				}
 
 				client = ssh.NewClientWithLogger(sshConfig, logger)
@@ -271,10 +287,12 @@ func newForwardCmd() *cobra.Command {
 			defer client.Close()
 			logger.Infof("Connected successfully")
 
-			// Create tunnel manager
+			if keepalive {
+				logger.Infof("Keepalive enabled (interval: %ds)", keepaliveInt)
+			}
+
 			tunnelManager := tunnel.NewTunnelManagerWithLogger(logger)
 
-			// Parse forward ports
 			var forwardConfigs []tunnel.ForwardConfig
 			if auto {
 				forwardConfigs = append(forwardConfigs, tunnel.ForwardConfig{AutoDetect: true})
@@ -282,7 +300,6 @@ func newForwardCmd() *cobra.Command {
 				for _, forward := range forwards {
 					parts := strings.Split(forward, ":")
 					if len(parts) == 1 {
-						// Single port: forward remote port to same local port
 						port, err := strconv.Atoi(parts[0])
 						if err != nil {
 							return fmt.Errorf("invalid port: %s", parts[0])
@@ -292,7 +309,6 @@ func newForwardCmd() *cobra.Command {
 							RemotePort: port,
 						})
 					} else if len(parts) == 2 {
-						// Local:Remote port mapping
 						localPort, err := strconv.Atoi(parts[0])
 						if err != nil {
 							return fmt.Errorf("invalid local port: %s", parts[0])
@@ -309,13 +325,16 @@ func newForwardCmd() *cobra.Command {
 				}
 			}
 
-			// Create port forwards
 			_, err = tunnel.CreatePortForwards(client, forwardConfigs, tunnelManager)
 			if err != nil {
 				return fmt.Errorf("failed to create port forwards: %w", err)
 			}
 
-			// List active tunnels
+			client.SetReconnectHandler(func() {
+				logger.Infof("Connection re-established, updating tunnels...")
+				tunnelManager.UpdateSSHClient(client)
+			})
+
 			tunnels := tunnelManager.ListTunnels()
 			logger.Infof("Active port forwards:")
 			for name, info := range tunnels {
@@ -324,7 +343,6 @@ func newForwardCmd() *cobra.Command {
 
 			logger.Infof("Press Ctrl+C to stop...")
 
-			// Wait for interrupt
 			select {
 			case <-cmd.Context().Done():
 				logger.Infof("Stopping...")
@@ -341,6 +359,8 @@ func newForwardCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&forwards, "ports", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")
+	cmd.Flags().BoolVar(&keepalive, "keepalive", true, "Enable SSH connection keepalive")
+	cmd.Flags().IntVar(&keepaliveInt, "keepalive-interval", 30, "Keepalive interval in seconds")
 
 	return cmd
 }
