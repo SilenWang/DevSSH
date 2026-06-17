@@ -38,13 +38,18 @@ depends-on = [
 ]
 cwd = "./"
 
+[tasks.publish_arch]
+cmd = "pixi publish --target-channel https://prefix.dev/channels/sylens -t {{ arch }}"
+args = [{ arg = "arch", default = "linux-64" }]
+cwd = "./"
+
 [tasks.publish]
 cmd = "echo 'Publish Done'"
 depends-on = [
-    { task = "build_linux_arch", args = ["amd64"] },
-    { task = "build_linux_arch", args = ["arm64"] },
-    { task = "build_darwin_arch", args = ["amd64"] },
-    { task = "build_darwin_arch", args = ["arm64"] }
+    { task = "publish_arch", args = ["linux-64"] },
+    { task = "publish_arch", args = ["linux-aarch64"] },
+    { task = "publish_arch", args = ["osx-amd64"] },
+    { task = "publish_arch", args = ["osx-arm64"] }
 ]
 cwd = "./"
 
