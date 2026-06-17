@@ -48,7 +48,7 @@ cmd = "echo 'Publish Done'"
 depends-on = [
     { task = "publish_arch", args = ["linux-64"] },
     { task = "publish_arch", args = ["linux-aarch64"] },
-    { task = "publish_arch", args = ["osx-amd64"] },
+    { task = "publish_arch", args = ["osx-64"] },
     { task = "publish_arch", args = ["osx-arm64"] }
 ]
 cwd = "./"
