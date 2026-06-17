@@ -14,7 +14,7 @@ build:
 requirements:
   build:
     - ${{ compiler('go-nocgo') }}
-    - patchelf
+    - patchelf    # [linux]
 
 about:
   homepage: https://github.com/SilenWang/DevSSH
