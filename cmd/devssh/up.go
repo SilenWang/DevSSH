@@ -70,8 +70,8 @@ func deployDevSSH(client *ssh.Client, version string, logger log.Logger) error {
 		return fmt.Errorf("failed to detect remote arch: %w", err)
 	}
 
-	if remoteOS != "linux" {
-		return fmt.Errorf("unsupported platform: %s. Only Linux is supported", remoteOS)
+	if remoteOS != "linux" && remoteOS != "darwin" {
+		return fmt.Errorf("unsupported platform: %s. Only Linux and macOS are supported", remoteOS)
 	}
 
 	if remoteArch != "amd64" && remoteArch != "arm64" {
@@ -143,8 +143,8 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 		return fmt.Errorf("failed to detect remote platform: %w", err)
 	}
 
-	if remoteOS != "linux" {
-		return fmt.Errorf("unsupported platform: %s. Only Linux is supported", remoteOS)
+	if remoteOS != "linux" && remoteOS != "darwin" {
+		return fmt.Errorf("unsupported platform: %s. Only Linux and macOS are supported", remoteOS)
 	}
 
 	if remoteArch != "amd64" && remoteArch != "arm64" {
