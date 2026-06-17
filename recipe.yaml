@@ -10,6 +10,8 @@ build:
   number: 1
   script: |
     go build -o $PREFIX/bin/devssh ./cmd/devssh
+  dynamic_linking:
+    binary_relocation: false
 
 requirements:
   build:
