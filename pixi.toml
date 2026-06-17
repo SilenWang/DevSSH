@@ -38,6 +38,16 @@ depends-on = [
 ]
 cwd = "./"
 
+[tasks.publish]
+cmd = "echo 'Publish Done'"
+depends-on = [
+    { task = "build_linux_arch", args = ["amd64"] },
+    { task = "build_linux_arch", args = ["arm64"] },
+    { task = "build_darwin_arch", args = ["amd64"] },
+    { task = "build_darwin_arch", args = ["arm64"] }
+]
+cwd = "./"
+
 [activation.env]
 CGO_ENABLED = "0"
 
