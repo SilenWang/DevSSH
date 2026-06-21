@@ -18,6 +18,8 @@ import (
 	"github.com/loft-sh/log"
 )
 
+const EnvLocalBinaryPath = "DEVSSH_LOCAL_BINARY_PATH"
+
 func uploadToRemote(client *ssh.Client, localPath, remotePath string) error {
 	scpClient := ssh.NewSCPClient(client)
 	return scpClient.Upload(localPath, remotePath)
@@ -78,21 +80,28 @@ func deployDevSSH(client *ssh.Client, version string, logger log.Logger) error {
 		return fmt.Errorf("unsupported architecture: %s. Only amd64 and arm64 are supported", remoteArch)
 	}
 
-	url := config.GetDevSSHDownloadURL(version, remoteOS, remoteArch)
+	var localPath string
 
-	logger.Infof("Downloading devssh %s for %s/%s from %s ...", version, remoteOS, remoteArch, url)
+	if localBinary := os.Getenv(EnvLocalBinaryPath); localBinary != "" {
+		logger.Infof("Using local devssh binary: %s", localBinary)
+		localPath = localBinary
+	} else {
+		url := config.GetDevSSHDownloadURL(version, remoteOS, remoteArch)
 
-	cacheDir, err := getCacheDir()
-	if err != nil {
-		return fmt.Errorf("failed to get cache directory: %w", err)
+		logger.Infof("Downloading devssh %s for %s/%s from %s ...", version, remoteOS, remoteArch, url)
+
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			return fmt.Errorf("failed to get cache directory: %w", err)
+		}
+
+		downloader := download.NewLocalDownloader(cacheDir, logger)
+		localPath, err = downloader.Download(url)
+		if err != nil {
+			return fmt.Errorf("failed to download devssh: %w", err)
+		}
+		defer os.Remove(localPath)
 	}
-
-	downloader := download.NewLocalDownloader(cacheDir, logger)
-	localPath, err := downloader.Download(url)
-	if err != nil {
-		return fmt.Errorf("failed to download devssh: %w", err)
-	}
-	defer os.Remove(localPath)
 
 	logger.Infof("Uploading devssh to remote...")
 	if err := uploadToRemote(client, localPath, "~/.devssh/bin/devssh"); err != nil {

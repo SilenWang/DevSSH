@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+// Env override keys for testing without GitHub releases
+const (
+	EnvDevSSHDownloadURL = "DEVSSH_DEVSSH_DOWNLOAD_URL"
+	EnvVSCodeDownloadURL = "DEVSSH_VSCODE_DOWNLOAD_URL"
+)
+
 const (
 	DevSSHDownloadURL = "https://github.com/SilenWang/DevSSH/releases/download/{{version}}/devssh-{{version}}-{{os}}-{{arch}}"
 )
@@ -133,14 +139,19 @@ func Save(cfg *Config) error {
 	return cfg.Save()
 }
 
-func GetDevSSHDownloadURL(version, os, arch string) string {
+func GetDevSSHDownloadURL(version, goos, arch string) string {
+	template := DevSSHDownloadURL
+	if envURL := os.Getenv(EnvDevSSHDownloadURL); envURL != "" {
+		template = envURL
+	}
+
 	replacer := strings.NewReplacer(
 		"{{version}}", version,
-		"{{os}}", os,
+		"{{os}}", goos,
 		"{{arch}}", arch,
 	)
 
-	url := replacer.Replace(DevSSHDownloadURL)
+	url := replacer.Replace(template)
 	return url
 }
 

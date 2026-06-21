@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"devssh/pkg/config"
 	"github.com/loft-sh/log"
 )
 
@@ -60,14 +61,23 @@ func (d *LocalDownloader) DownloadVSCode(version, os, arch string) (string, erro
 	return d.Download(url)
 }
 
-func (d *LocalDownloader) GetVSCodeDownloadURL(version, os, arch string) string {
-	return GetVSCodeDownloadURL(version, os, arch)
+func (d *LocalDownloader) GetVSCodeDownloadURL(version, goos, arch string) string {
+	return GetVSCodeDownloadURL(version, goos, arch)
 }
 
-func GetVSCodeDownloadURL(version, os, arch string) string {
+func GetVSCodeDownloadURL(version, goos, arch string) string {
+	if envURL := os.Getenv(config.EnvVSCodeDownloadURL); envURL != "" {
+		replacer := strings.NewReplacer(
+			"{{version}}", version,
+			"{{os}}", goos,
+			"{{arch}}", arch,
+		)
+		return replacer.Replace(envURL)
+	}
+
 	baseURL := fmt.Sprintf("https://github.com/VSCodium/vscodium/releases/download/%s/vscodium-reh-web", version)
 
-	switch os {
+	switch goos {
 	case "linux":
 		if arch == "amd64" {
 			return baseURL + "-linux-x64-" + version + ".tar.gz"
@@ -82,7 +92,7 @@ func GetVSCodeDownloadURL(version, os, arch string) string {
 		}
 	}
 
-	return baseURL + fmt.Sprintf("-%s-%s-%s.tar.gz", os, arch, version)
+	return baseURL + fmt.Sprintf("-%s-%s-%s.tar.gz", goos, arch, version)
 }
 
 func (d *LocalDownloader) getCachePath(url string) (string, error) {

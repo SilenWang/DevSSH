@@ -53,6 +53,22 @@ depends-on = [
 ]
 cwd = "./"
 
+[tasks.test]
+cmd = "go test ./..."
+cwd = "./"
+
+[tasks.test_verbose]
+cmd = "go test -v ./..."
+cwd = "./"
+
+[tasks.test_short]
+cmd = "go test -short ./..."
+cwd = "./"
+
+[tasks.test_integration]
+cmd = "bash scripts/test_integration.sh"
+cwd = "./"
+
 [activation.env]
 CGO_ENABLED = "0"
 
