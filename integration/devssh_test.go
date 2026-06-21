@@ -159,6 +159,12 @@ func (s *DevSSHIntegrationSuite) copyBinaryToArtifacts() {
 
 func (s *DevSSHIntegrationSuite) TearDownSuite() {
 	s.T().Log("=== Cleaning up ===")
+	// Dump docker logs before cleanup if test failed
+	if s.T().Failed() {
+		logsCmd := exec.Command("docker", "logs", s.dockerName)
+		logs, _ := logsCmd.CombinedOutput()
+		s.T().Logf("Docker container logs:\n%s", string(logs))
+	}
 	if s.httpCmd != nil && s.httpCmd.Process != nil {
 		s.httpCmd.Process.Kill()
 	}
