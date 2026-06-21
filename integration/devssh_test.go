@@ -110,8 +110,9 @@ done
 	dockerCmd := exec.Command("docker", "run", "-d",
 		"--name", s.dockerName,
 		"-p", fmt.Sprintf("%s:22", s.sshPort),
-		"-e", "SSH_USER=testuser",
-		"-e", "SSH_PASSWORD=testpass",
+		"-e", fmt.Sprintf("USER=testuser"),
+		"-e", "PASSWORD=testpass",
+		"-e", "SUDO_ACCESS=true",
 		"lscr.io/linuxserver/openssh-server:latest")
 	output, err = dockerCmd.CombinedOutput()
 	s.Require().NoError(err, "docker run failed: %s", string(output))
@@ -127,7 +128,7 @@ done
 	}
 
 	s.T().Log("Waiting for SSH server (SSH handshake)...")
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 45; i++ {
 		sshCheck := exec.Command("sshpass", "-p", "testpass", "ssh",
 			"-o", "StrictHostKeyChecking=no",
 			"-o", "UserKnownHostsFile=/dev/null",
@@ -140,8 +141,11 @@ done
 			s.T().Log("SSH server is ready")
 			break
 		}
-		if i == 29 {
-			s.T().Fatalf("SSH server not ready after 30 attempts, last output: %s", string(output))
+		if i == 44 {
+			// Dump docker logs before failing
+			logsCmd := exec.Command("docker", "logs", s.dockerName)
+			logs, _ := logsCmd.CombinedOutput()
+			s.T().Fatalf("SSH server not ready after 45 attempts, last output: %s\nDocker logs:\n%s", string(output), string(logs))
 		}
 		time.Sleep(2 * time.Second)
 	}
