@@ -110,16 +110,17 @@ done
 	dockerCmd := exec.Command("docker", "run", "-d",
 		"--name", s.dockerName,
 		"-p", fmt.Sprintf("%s:22", s.sshPort),
-		"-e", fmt.Sprintf("USER=testuser"),
+		"-e", "USER=testuser",
 		"-e", "PASSWORD=testpass",
 		"-e", "SUDO_ACCESS=true",
+		"-e", "PASSWORD_ACCESS=true",
 		"lscr.io/linuxserver/openssh-server:latest")
 	output, err = dockerCmd.CombinedOutput()
 	s.Require().NoError(err, "docker run failed: %s", string(output))
 
 	s.T().Log("Waiting for SSH server (TCP)...")
 	for i := 0; i < 30; i++ {
-		conn, err := net.DialTimeout("tcp", "localhost:"+s.sshPort, 2*time.Second)
+		conn, err := net.DialTimeout("tcp", "127.0.0.1:"+s.sshPort, 2*time.Second)
 		if err == nil {
 			conn.Close()
 			break
@@ -134,7 +135,7 @@ done
 			"-o", "UserKnownHostsFile=/dev/null",
 			"-o", "ConnectTimeout=5",
 			"-p", s.sshPort,
-			"testuser@localhost",
+			"testuser@127.0.0.1",
 			"echo READY")
 		output, err := sshCheck.CombinedOutput()
 		if err == nil && strings.Contains(string(output), "READY") {
@@ -187,7 +188,7 @@ func (s *DevSSHIntegrationSuite) TestUpCommand() {
 		"--password", "testpass",
 		"--timeout", "30",
 		"--keepalive=false",
-		"localhost")
+		"127.0.0.1")
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("DEVSSH_DEVSSH_DOWNLOAD_URL=http://localhost:%s/devssh-{{version}}-{{os}}-{{arch}}", s.httpPort),
 		fmt.Sprintf("DEVSSH_VSCODE_DOWNLOAD_URL=http://localhost:%s/vscodium-reh-web-{{os}}-{{arch}}-{{version}}.tar.gz", s.httpPort),
@@ -231,7 +232,7 @@ func (s *DevSSHIntegrationSuite) TestSSHConnection() {
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-p", s.sshPort,
-		"testuser@localhost",
+		"testuser@127.0.0.1",
 		"echo 'SSH_OK'")
 	output, err := cmd.CombinedOutput()
 	s.Require().NoError(err, "ssh failed: %s", string(output))
