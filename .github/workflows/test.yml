@@ -24,5 +24,7 @@ jobs:
       - uses: prefix-dev/setup-pixi@v0.8.0
         with:
           cache: true
+      - name: Install integration test dependencies
+        run: sudo apt-get update && sudo apt-get install -y sshpass netcat-openbsd
       - run: pixi run build
       - run: pixi run test_integration

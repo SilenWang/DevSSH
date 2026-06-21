@@ -28,6 +28,21 @@ type DevSSHIntegrationSuite struct {
 	httpCmd    *exec.Cmd
 }
 
+func findProjectRoot() string {
+	wd, _ := os.Getwd()
+	for dir := wd; dir != "/"; dir = filepath.Dir(dir) {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+	}
+	return wd
+}
+
+func checkPrerequisite(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
 func TestDevSSHIntegrationSuite(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -36,19 +51,32 @@ func TestDevSSHIntegrationSuite(t *testing.T) {
 }
 
 func (s *DevSSHIntegrationSuite) SetupSuite() {
+	required := []string{"docker", "python3", "sshpass", "nc"}
+	for _, bin := range required {
+		if !checkPrerequisite(bin) {
+			s.T().Fatalf("prerequisite not found: %s (install with: sudo apt-get install -y %s)", bin, map[string]string{
+				"docker":  "docker.io",
+				"python3": "python3",
+				"sshpass": "sshpass",
+				"nc":      "netcat-openbsd",
+			}[bin])
+		}
+	}
+
 	s.sshPort = "10022"
 	s.httpPort = "19999"
 	s.dockerName = fmt.Sprintf("devssh-test-%d", time.Now().UnixNano())
 
+	projectRoot := findProjectRoot()
+
 	s.T().Log("=== Building devssh binary ===")
-	buildCmd := exec.Command("go", "build", "-o", "bin/devssh-linux-amd64", "./cmd/devssh/")
+	buildCmd := exec.Command("go", "build", "-o", filepath.Join(projectRoot, "bin", "devssh-linux-amd64"), "./cmd/devssh/")
+	buildCmd.Dir = projectRoot
 	buildCmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	output, err := buildCmd.CombinedOutput()
 	s.Require().NoError(err, "build failed: %s", string(output))
 
-	wd, err := os.Getwd()
-	s.Require().NoError(err)
-	s.binaryPath = filepath.Join(wd, "bin", "devssh-linux-amd64")
+	s.binaryPath = filepath.Join(projectRoot, "bin", "devssh-linux-amd64")
 	s.Require().FileExists(s.binaryPath)
 
 	s.T().Log("=== Creating test artifacts ===")
@@ -61,7 +89,7 @@ func (s *DevSSHIntegrationSuite) SetupSuite() {
 PORT=$2
 echo "Fake codium-server listening on port $PORT"
 while true; do
-    echo -e "HTTP/1.1 200 OK\r\n\r\nFake VSCode" | nc -l -p "$PORT" -q 1 2>/dev/null
+    echo -e "HTTP/1.1 200 OK\r\n\r\nFake VSCode" | nc -l "$PORT" 2>/dev/null
 done
 `))
 	err = os.WriteFile(fakeScript, fakeContent, 0755)
