@@ -116,16 +116,35 @@ done
 	output, err = dockerCmd.CombinedOutput()
 	s.Require().NoError(err, "docker run failed: %s", string(output))
 
-	s.T().Log("Waiting for SSH server...")
+	s.T().Log("Waiting for SSH server (TCP)...")
 	for i := 0; i < 30; i++ {
 		conn, err := net.DialTimeout("tcp", "localhost:"+s.sshPort, 2*time.Second)
 		if err == nil {
 			conn.Close()
 			break
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
-	time.Sleep(3 * time.Second)
+
+	s.T().Log("Waiting for SSH server (SSH handshake)...")
+	for i := 0; i < 30; i++ {
+		sshCheck := exec.Command("sshpass", "-p", "testpass", "ssh",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "ConnectTimeout=5",
+			"-p", s.sshPort,
+			"testuser@localhost",
+			"echo READY")
+		output, err := sshCheck.CombinedOutput()
+		if err == nil && strings.Contains(string(output), "READY") {
+			s.T().Log("SSH server is ready")
+			break
+		}
+		if i == 29 {
+			s.T().Fatalf("SSH server not ready after 30 attempts, last output: %s", string(output))
+		}
+		time.Sleep(2 * time.Second)
+	}
 
 	s.copyBinaryToArtifacts()
 }
