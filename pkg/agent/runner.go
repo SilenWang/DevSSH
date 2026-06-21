@@ -20,15 +20,16 @@ import (
 )
 
 const (
-	DefaultVersion = "1.121.03429"
+	DefaultVersion = "1.116.02821"
 )
 
 type Runner struct {
-	workDir    string
-	logFile    string
-	vscodiumDir string
-	serverPath string
-	serverPID  int
+	workDir        string
+	logFile        string
+	vscodiumDir    string
+	serverPath     string
+	versionFile    string
+	serverPID      int
 }
 
 func NewRunner() (*Runner, error) {
@@ -50,6 +51,7 @@ func NewRunner() (*Runner, error) {
 		logFile:     logFile,
 		vscodiumDir: vscodiumDir,
 		serverPath:  filepath.Join(vscodiumDir, "bin", "codium-server"),
+		versionFile: filepath.Join(vscodiumDir, "version"),
 	}, nil
 }
 
@@ -84,7 +86,21 @@ func (r *Runner) Install(version string) error {
 
 	os.Remove(downloadPath)
 
+	r.saveVersion(version)
+
 	return nil
+}
+
+func (r *Runner) saveVersion(version string) {
+	os.WriteFile(r.versionFile, []byte(version), 0644)
+}
+
+func (r *Runner) GetInstalledVersion() string {
+	data, err := os.ReadFile(r.versionFile)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 func (r *Runner) Start(port int) error {
@@ -356,7 +372,7 @@ func getHomeDir() (string, error) {
 	return usr.HomeDir, nil
 }
 
-func (r *Runner) InstallFromTar(tarPath string) error {
+func (r *Runner) InstallFromTar(tarPath string, version string) error {
 	if r.IsInstalled() {
 		logging.Infof("VSCode is already installed")
 		return nil
@@ -370,6 +386,10 @@ func (r *Runner) InstallFromTar(tarPath string) error {
 
 	if err := r.extract(tarPath); err != nil {
 		return fmt.Errorf("failed to extract: %w", err)
+	}
+
+	if version != "" {
+		r.saveVersion(version)
 	}
 
 	logging.Infof("VSCode installed successfully")

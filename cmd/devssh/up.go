@@ -165,13 +165,36 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	}
 
 	logger.Infof("Checking VSCode installation on remote...")
-	vscodeCheckCmd := "test -f ~/.devssh/vscodium/bin/codium-server && echo 'installed' || echo 'not_installed'"
-	checkOutput, checkErr := client.RunCommand(vscodeCheckCmd)
+	checkCmd := "test -f ~/.devssh/vscodium/bin/codium-server && echo 'installed' || echo 'not_installed'"
+	checkOutput, checkErr := client.RunCommand(checkCmd)
 	if checkErr != nil {
 		return fmt.Errorf("failed to check remote VSCode: %w", checkErr)
 	}
 
+	if version == "" {
+		version = "1.116.02821"
+	}
+
+	needsReinstall := false
 	if strings.Contains(checkOutput, "not_installed") {
+		needsReinstall = true
+	} else {
+		versionCheckCmd := "cat ~/.devssh/vscodium/version 2>/dev/null || echo 'unknown'"
+		versionOutput, _ := client.RunCommand(versionCheckCmd)
+		installedVersion := strings.TrimSpace(versionOutput)
+		if installedVersion != version {
+			logger.Infof("VSCode version mismatch: installed=%s, expected=%s", installedVersion, version)
+			needsReinstall = true
+		}
+	}
+
+	if needsReinstall {
+		logger.Infof("Stopping VSCode if running...")
+		client.RunCommand("~/.devssh/bin/devssh agent stop")
+
+		logger.Infof("Removing existing VSCodium installation...")
+		client.RunCommand("rm -rf ~/.devssh/vscodium")
+
 		logger.Infof("Downloading VSCode %s for %s/%s...", version, remoteOS, remoteArch)
 		vscodePath, err := downloadVSCodeLocal(version, remoteOS, remoteArch, logger)
 		if err != nil {
@@ -184,7 +207,8 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 		}
 
 		logger.Infof("Installing VSCodium on remote...")
-		if _, err := runRemoteAgentCommand(client, "install --local-tar ~/.devssh/vscodium-reh-web.tar.gz"); err != nil {
+		installCmd := fmt.Sprintf("install --local-tar ~/.devssh/vscodium-reh-web.tar.gz --version %s", version)
+		if _, err := runRemoteAgentCommand(client, installCmd); err != nil {
 			return fmt.Errorf("failed to install VSCode: %w", err)
 		}
 	} else {
