@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  push:
+    branches: [master, "agent/**"]
+  pull_request:
+    branches: [master]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.0
+        with:
+          cache: true
+      - run: pixi run build
+      - run: pixi run test
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.0
+        with:
+          cache: true
+      - run: pixi run build
+      - run: pixi run test_integration
