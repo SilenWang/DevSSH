@@ -25,7 +25,7 @@ Commands:
 
 Examples:
   devssh agent install
-  devssh agent install --version 1.121.03429
+  devssh agent install --version 1.116.02821
   devssh agent install --local-tar /path/to/vscodium-reh-web.tar.gz
   devssh agent start --port 10081
   devssh agent stop
@@ -72,7 +72,7 @@ If already installed, this command will be skipped.`,
 			logging.Infof("Installing VSCode...")
 
 			if localTar != "" {
-				if err := runner.InstallFromTar(localTar); err != nil {
+				if err := runner.InstallFromTar(localTar, version); err != nil {
 					return fmt.Errorf("failed to install VSCode from local tar: %w", err)
 				}
 			} else {
@@ -86,7 +86,7 @@ If already installed, this command will be skipped.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&version, "version", "1.121.03429", "VSCode version to install")
+	cmd.Flags().StringVar(&version, "version", "1.116.02821", "VSCode version to install")
 	cmd.Flags().StringVar(&localTar, "local-tar", "", "Path to local tar.gz file (use this instead of downloading)")
 
 	return cmd

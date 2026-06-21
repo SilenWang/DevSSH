@@ -183,7 +183,7 @@ func newUpCmd() *cobra.Command {
 	cmd.Flags().StringVar(&password, "password", "", "SSH password")
 	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server)")
 	cmd.Flags().IntVar(&idePort, "ide-port", 10081, "Port for IDE")
-	cmd.Flags().StringVar(&version, "version", "1.121.03429", "IDE version")
+	cmd.Flags().StringVar(&version, "version", "1.116.02821", "IDE version")
 	cmd.Flags().StringSliceVar(&forwards, "forward", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")

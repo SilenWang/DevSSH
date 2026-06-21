@@ -52,7 +52,7 @@ func (d *LocalDownloader) Download(url string) (string, error) {
 
 func (d *LocalDownloader) DownloadVSCode(version, os, arch string) (string, error) {
 	if version == "" {
-		version = "1.121.03429"
+		version = "1.116.02821"
 	}
 
 	url := d.GetVSCodeDownloadURL(version, os, arch)
