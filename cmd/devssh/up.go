@@ -194,7 +194,7 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	if strings.Contains(checkOutput, "not_installed") {
 		needsReinstall = true
 	} else {
-		versionCheckCmd := "grep -o '\"version\": *\"[^\"]*\"' \"$HOME/.devssh/vscodium/product.json\" 2>/dev/null | cut -d'\"' -f4"
+		versionCheckCmd := "awk -F'\"' '/\"version\"[[:space:]]*:[[:space:]]*\"/{v=$4} END{print v}' \"$HOME/.devssh/vscodium/product.json\" 2>/dev/null"
 		versionOutput, _ := client.RunCommand(versionCheckCmd)
 		installedVersion := strings.TrimSpace(versionOutput)
 		if installedVersion == "" {
