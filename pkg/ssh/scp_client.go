@@ -40,7 +40,7 @@ func (s *SCPClient) Upload(localPath, remotePath string) error {
 
 	remoteDir := filepath.Dir(remotePath)
 	if remoteDir != "." && remoteDir != "/" {
-		mkdirCmd := fmt.Sprintf("mkdir -p %s", remoteDir)
+		mkdirCmd := fmt.Sprintf("mkdir -p \"%s\"", remoteDir)
 		if _, err := s.client.RunCommand(mkdirCmd); err != nil {
 			return fmt.Errorf("failed to create remote directory: %w", err)
 		}
@@ -66,7 +66,7 @@ func (s *SCPClient) uploadViaSSH(file *os.File, remotePath string, size int64, m
 		return fmt.Errorf("failed to get stdout pipe: %w", err)
 	}
 
-	if err := session.Start(fmt.Sprintf("scp -t %s", remotePath)); err != nil {
+	if err := session.Start(fmt.Sprintf("scp -t \"%s\"", remotePath)); err != nil {
 		return fmt.Errorf("failed to start SCP command: %w", err)
 	}
 
@@ -169,7 +169,7 @@ func (s *SCPClient) Download(remotePath, localPath string) error {
 		return fmt.Errorf("failed to get stdout pipe: %w", err)
 	}
 
-	if err := session.Start(fmt.Sprintf("scp -f %s", remotePath)); err != nil {
+	if err := session.Start(fmt.Sprintf("scp -f \"%s\"", remotePath)); err != nil {
 		return fmt.Errorf("failed to start SCP command: %w", err)
 	}
 
@@ -212,7 +212,7 @@ func (s *SCPClient) CheckRemoteFileExists(remotePath string) (bool, error) {
 		return false, fmt.Errorf("SSH client not connected")
 	}
 
-	checkCmd := fmt.Sprintf("test -f %s && echo exists", remotePath)
+	checkCmd := fmt.Sprintf("test -f \"%s\" && echo exists", remotePath)
 	output, err := s.client.RunCommand(checkCmd)
 	if err != nil {
 		return false, nil
@@ -226,7 +226,7 @@ func (s *SCPClient) GetRemoteFileSize(remotePath string) (int64, error) {
 		return 0, fmt.Errorf("SSH client not connected")
 	}
 
-	sizeCmd := fmt.Sprintf("stat -c %%s %s 2>/dev/null || wc -c < %s 2>/dev/null", remotePath, remotePath)
+	sizeCmd := fmt.Sprintf("stat -f %%z \"%s\" 2>/dev/null || stat -c %%s \"%s\" 2>/dev/null || wc -c < \"%s\" 2>/dev/null", remotePath, remotePath, remotePath)
 	output, err := s.client.RunCommand(sizeCmd)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get remote file size: %w", err)
