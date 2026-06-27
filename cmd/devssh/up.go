@@ -201,7 +201,9 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 		client.RunCommand("\"$HOME/.devssh/bin/devssh\" agent stop")
 
 		logger.Infof("Removing existing VSCodium installation...")
-		client.RunCommand("rm -rf \"$HOME/.devssh/vscodium\"")
+		if _, err := client.RunCommand("rm -rf \"$HOME/.devssh/vscodium\""); err != nil {
+			logger.Warnf("Failed to remove old VSCodium installation, will attempt to overwrite: %v", err)
+		}
 
 		logger.Infof("Downloading VSCode %s for %s/%s...", version, remoteOS, remoteArch)
 		vscodePath, err := downloadVSCodeLocal(version, remoteOS, remoteArch, logger)
@@ -218,6 +220,16 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 		installCmd := fmt.Sprintf("install --local-tar \"$HOME/.devssh/vscodium-reh-web.tar.gz\" --version %s", version)
 		if _, err := runRemoteAgentCommand(client, installCmd); err != nil {
 			return fmt.Errorf("failed to install VSCode: %w", err)
+		}
+
+		postCheckCmd := "test -f \"$HOME/.devssh/vscodium/version\" && echo 'ok' || echo 'missing'"
+		postOutput, postErr := client.RunCommand(postCheckCmd)
+		if postErr != nil || strings.Contains(postOutput, "missing") {
+			logger.Warnf("VSCode version file is still missing after install, trying to create it manually")
+			writeVersionCmd := fmt.Sprintf("echo '%s' > \"$HOME/.devssh/vscodium/version\"", version)
+			if _, err := client.RunCommand(writeVersionCmd); err != nil {
+				return fmt.Errorf("failed to write version file: %w", err)
+			}
 		}
 	} else {
 		logger.Infof("VSCode is already installed, skipping installation")

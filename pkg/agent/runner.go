@@ -171,8 +171,13 @@ func (r *Runner) Stop() error {
 }
 
 func (r *Runner) IsInstalled() bool {
-	_, err := os.Stat(r.serverPath)
-	return err == nil
+	if _, err := os.Stat(r.serverPath); err != nil {
+		return false
+	}
+	if _, err := os.Stat(r.versionFile); err != nil {
+		return false
+	}
+	return true
 }
 
 func (r *Runner) IsRunning() bool {
