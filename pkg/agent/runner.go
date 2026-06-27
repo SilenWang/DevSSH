@@ -86,13 +86,15 @@ func (r *Runner) Install(version string) error {
 
 	os.Remove(downloadPath)
 
-	r.saveVersion(version)
+	if err := r.saveVersion(version); err != nil {
+		logging.Warnf("Failed to save version file: %v", err)
+	}
 
 	return nil
 }
 
-func (r *Runner) saveVersion(version string) {
-	os.WriteFile(r.versionFile, []byte(version), 0644)
+func (r *Runner) saveVersion(version string) error {
+	return os.WriteFile(r.versionFile, []byte(version), 0644)
 }
 
 func (r *Runner) GetInstalledVersion() string {
@@ -389,7 +391,9 @@ func (r *Runner) InstallFromTar(tarPath string, version string) error {
 	}
 
 	if version != "" {
-		r.saveVersion(version)
+		if err := r.saveVersion(version); err != nil {
+			logging.Warnf("Failed to save version file: %v", err)
+		}
 	}
 
 	logging.Infof("VSCode installed successfully")
