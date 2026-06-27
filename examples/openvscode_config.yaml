@@ -14,7 +14,7 @@ extensions:
   - "redhat.vscode-yaml"    # YAML支持
   - "eamodio.gitlens"       # Git增强
 
-# VSCode设置
+# VSCodium设置
 settings: |
   {
     // 编辑器设置
@@ -72,7 +72,7 @@ options:
 #     "FORWARD_PORTS": {Value: "true"},
 # }
 # 
-# installer := ide.NewInstallerWithOptions(sshClient, ide.VSCode, values, logger)
+# installer := ide.NewInstallerWithOptions(sshClient, ide.VSCodium, values, logger)
 # installer.SetOpenVSCodeExtensions(extensions)
 # installer.SetOpenVSCodeSettings(settings)
 # err := installer.Install()
@@ -80,7 +80,7 @@ options:
 # 
 # 2. 通过命令行使用（需要实现）：
 # ```
-# devssh ide install vscode \
+# devssh ide install vscodium \
 #   --version v1.84.2 \
 #   --extension ms-python.python \
 #   --extension ms-vscode.go \

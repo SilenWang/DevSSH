@@ -50,21 +50,21 @@ func (d *LocalDownloader) Download(url string) (string, error) {
 	return cachePath, nil
 }
 
-func (d *LocalDownloader) DownloadVSCode(version, os, arch string) (string, error) {
+func (d *LocalDownloader) DownloadVSCodium(version, os, arch string) (string, error) {
 	if version == "" {
 		version = "1.116.02821"
 	}
 
-	url := d.GetVSCodeDownloadURL(version, os, arch)
-	d.logger.Infof("Downloading VSCode from %s", url)
+	url := d.GetVSCodiumDownloadURL(version, os, arch)
+	d.logger.Infof("Downloading VSCodium from %s", url)
 	return d.Download(url)
 }
 
-func (d *LocalDownloader) GetVSCodeDownloadURL(version, os, arch string) string {
-	return GetVSCodeDownloadURL(version, os, arch)
+func (d *LocalDownloader) GetVSCodiumDownloadURL(version, os, arch string) string {
+	return GetVSCodiumDownloadURL(version, os, arch)
 }
 
-func GetVSCodeDownloadURL(version, os, arch string) string {
+func GetVSCodiumDownloadURL(version, os, arch string) string {
 	baseURL := fmt.Sprintf("https://github.com/VSCodium/vscodium/releases/download/%s/vscodium-reh-web", version)
 
 	switch os {
