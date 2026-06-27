@@ -194,9 +194,12 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	if strings.Contains(checkOutput, "not_installed") {
 		needsReinstall = true
 	} else {
-		versionCheckCmd := "grep -o '\"version\":\"[^\"]*\"' \"$HOME/.devssh/vscodium/product.json\" 2>/dev/null | cut -d'\"' -f4 || echo 'unknown'"
+		versionCheckCmd := "grep -o '\"version\": *\"[^\"]*\"' \"$HOME/.devssh/vscodium/product.json\" 2>/dev/null | cut -d'\"' -f4"
 		versionOutput, _ := client.RunCommand(versionCheckCmd)
 		installedVersion := strings.TrimSpace(versionOutput)
+		if installedVersion == "" {
+			installedVersion = "unknown"
+		}
 		if installedVersion != version {
 			logger.Infof("VSCode version mismatch: installed=%s, expected=%s", installedVersion, version)
 			needsReinstall = true
