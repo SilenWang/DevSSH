@@ -12,16 +12,16 @@ import (
 func newAgentCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "agent",
-		Short: "Manage VSCode installation and running",
-		Long: `Manage VSCode (VSCodium reh-web) installation and running on the current machine.
+		Short: "Manage VSCodium installation and running",
+		Long: `Manage VSCodium (VSCodium reh-web) installation and running on the current machine.
 
 Commands:
   install     Download and install VSCodium reh-web
-  start       Start VSCode
-  stop        Stop VSCode
-  uninstall   Uninstall VSCode and clean up
-  is-running  Check if VSCode is running
-  get-port    Get the port VSCode is running on
+  start       Start VSCodium
+  stop        Stop VSCodium
+  uninstall   Uninstall VSCodium and clean up
+  is-running  Check if VSCodium is running
+  get-port    Get the port VSCodium is running on
 
 Examples:
   devssh agent install
@@ -65,28 +65,28 @@ If already installed, this command will be skipped.`,
 			}
 
 			if runner.IsInstalled() {
-				logging.Infof("VSCode is already installed")
+				logging.Infof("VSCodium is already installed")
 				return nil
 			}
 
-			logging.Infof("Installing VSCode...")
+			logging.Infof("Installing VSCodium...")
 
 			if localTar != "" {
 				if err := runner.InstallFromTar(localTar, version); err != nil {
-					return fmt.Errorf("failed to install VSCode from local tar: %w", err)
+					return fmt.Errorf("failed to install VSCodium from local tar: %w", err)
 				}
 			} else {
 				if err := runner.Install(version); err != nil {
-					return fmt.Errorf("failed to install VSCode: %w", err)
+					return fmt.Errorf("failed to install VSCodium: %w", err)
 				}
 			}
 
-			logging.Infof("VSCode installed successfully")
+			logging.Infof("VSCodium installed successfully")
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&version, "version", "1.116.02821", "VSCode version to install")
+	cmd.Flags().StringVar(&version, "version", "1.116.02821", "VSCodium version to install")
 	cmd.Flags().StringVar(&localTar, "local-tar", "", "Path to local tar.gz file (use this instead of downloading)")
 
 	return cmd
@@ -97,9 +97,9 @@ func newAgentStartCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Start VSCode",
+		Short: "Start VSCodium",
 		Long: `Start VSCodium reh-web on the specified port.
-If VSCode is already running, this command will be skipped.`,
+If VSCodium is already running, this command will be skipped.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
 			if err != nil {
@@ -107,27 +107,27 @@ If VSCode is already running, this command will be skipped.`,
 			}
 
 			if !runner.IsInstalled() {
-				return fmt.Errorf("VSCode is not installed. Run 'devssh agent install' first")
+				return fmt.Errorf("VSCodium is not installed. Run 'devssh agent install' first")
 			}
 
 			if runner.IsRunning() {
-				logging.Infof("VSCode is already running")
+				logging.Infof("VSCodium is already running")
 				return nil
 			}
 
-			logging.Infof("Starting VSCode on port %d...", port)
+			logging.Infof("Starting VSCodium on port %d...", port)
 
 			if err := runner.Start(port); err != nil {
-				return fmt.Errorf("failed to start VSCode: %w", err)
+				return fmt.Errorf("failed to start VSCodium: %w", err)
 			}
 
-			logging.Infof("VSCode started successfully")
-			logging.Infof("VSCode is accessible at http://localhost:%d", port)
+			logging.Infof("VSCodium started successfully")
+			logging.Infof("VSCodium is accessible at http://localhost:%d", port)
 			return nil
 		},
 	}
 
-	cmd.Flags().IntVarP(&port, "port", "p", 10081, "Port to start VSCode on")
+	cmd.Flags().IntVarP(&port, "port", "p", 10081, "Port to start VSCodium on")
 
 	return cmd
 }
@@ -135,8 +135,8 @@ If VSCode is already running, this command will be skipped.`,
 func newAgentStopCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "stop",
-		Short: "Stop VSCode",
-		Long:  `Stop the running VSCode instance.`,
+		Short: "Stop VSCodium",
+		Long:  `Stop the running VSCodium instance.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
 			if err != nil {
@@ -144,17 +144,17 @@ func newAgentStopCmd() *cobra.Command {
 			}
 
 			if !runner.IsRunning() {
-				logging.Infof("VSCode is not running")
+				logging.Infof("VSCodium is not running")
 				return nil
 			}
 
-			logging.Infof("Stopping VSCode...")
+			logging.Infof("Stopping VSCodium...")
 
 			if err := runner.Stop(); err != nil {
-				return fmt.Errorf("failed to stop VSCode: %w", err)
+				return fmt.Errorf("failed to stop VSCodium: %w", err)
 			}
 
-			logging.Infof("VSCode stopped successfully")
+			logging.Infof("VSCodium stopped successfully")
 			return nil
 		},
 	}
@@ -165,8 +165,8 @@ func newAgentStopCmd() *cobra.Command {
 func newAgentUninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
-		Short: "Uninstall VSCode and clean up",
-		Long:  `Stop VSCode and remove all installed files.`,
+		Short: "Uninstall VSCodium and clean up",
+		Long:  `Stop VSCodium and remove all installed files.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
 			if err != nil {
@@ -174,14 +174,14 @@ func newAgentUninstallCmd() *cobra.Command {
 			}
 
 			if !runner.IsInstalled() && !runner.IsRunning() {
-				logging.Infof("VSCode is not installed")
+				logging.Infof("VSCodium is not installed")
 				return nil
 			}
 
-			logging.Infof("Uninstalling VSCode...")
+			logging.Infof("Uninstalling VSCodium...")
 
 			if err := runner.Uninstall(); err != nil {
-				return fmt.Errorf("failed to uninstall VSCode: %w", err)
+				return fmt.Errorf("failed to uninstall VSCodium: %w", err)
 			}
 
 			return nil
@@ -194,8 +194,8 @@ func newAgentUninstallCmd() *cobra.Command {
 func newAgentIsRunningCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "is-running",
-		Short: "Check if VSCode is running",
-		Long:  `Check if VSCode (VSCodium reh-web) is currently running.`,
+		Short: "Check if VSCodium is running",
+		Long:  `Check if VSCodium (VSCodium reh-web) is currently running.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
 			if err != nil {
@@ -217,8 +217,8 @@ func newAgentIsRunningCmd() *cobra.Command {
 func newAgentGetPortCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get-port",
-		Short: "Get the port VSCode is running on",
-		Long:  `Get the port number that VSCode (VSCodium reh-web) is running on.`,
+		Short: "Get the port VSCodium is running on",
+		Long:  `Get the port number that VSCodium (VSCodium reh-web) is running on.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := agent.NewRunner()
 			if err != nil {

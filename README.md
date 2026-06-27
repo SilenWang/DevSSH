@@ -4,7 +4,7 @@ A CLI tool to quickly set up remote development tools over SSH.
 
 ## Overview
 
-`DevSSH` connects to a remote host via SSH, installs and launches [openvscode-server](https://github.com/gitpod-io/openvscode-server), then forwards its access port back to your local machine. It also provides fast port‑forwarding for other services, letting you start coding or debugging on a remote machine in seconds—without needing to pre‑build containers or manage complex configurations.
+`DevSSH` connects to a remote host via SSH, installs and launches [VSCodium](https://github.com/VSCodium/vscodium) reh-web, then forwards its access port back to your local machine. It also provides fast port‑forwarding for other services, letting you start coding or debugging on a remote machine in seconds—without needing to pre‑build containers or manage complex configurations.
 
 ## Why DevSSH?
 

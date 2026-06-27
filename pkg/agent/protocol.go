@@ -3,6 +3,7 @@ package agent
 type IDEType string
 
 const (
+	IDETypeVSCodium   IDEType = "vscodium"
 	IDETypeVSCode     IDEType = "vscode"
 	IDETypeCodeServer IDEType = "code-server"
 )

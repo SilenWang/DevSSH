@@ -96,7 +96,7 @@ Flags:
   -p, --port string      SSH 端口 (默认 "22")
       --key string       SSH 私钥路径
       --password string  SSH 密码
-      --ide string       Web IDE 类型 (默认 "vscode")
+      --ide string       Web IDE 类型 (默认 "vscodium")
       --install          如果不存在则安装 Web IDE (默认 true)
       --forward strings  要转发的端口 (例如: 3000, 8080:80)
       --auto             自动检测并转发 Web 服务端口
@@ -115,7 +115,7 @@ Flags:
   -p, --port string SSH 端口 (默认 "22")
       --key string  SSH 私钥路径
       --password string SSH 密码
-      --ide string  Web IDE 类型 (默认 "vscode")
+      --ide string  Web IDE 类型 (默认 "vscodium")
       --timeout int SSH 连接超时时间（秒）(默认 30)
 ```
 
@@ -154,7 +154,7 @@ devssh ssh-hosts
 
 ## 支持的 Web IDE
 
-- **vscode**: openvscode-server（基于 Gitpod 的 openvscode 实现）
+- **vscodium**: VSCodium reh-web（基于 VSCodium 的开发环境）
 - **code-server**: 传统 code-server（通过 DevPod 适配器）
 
 ### openvscode-server 特性
@@ -162,8 +162,8 @@ devssh ssh-hosts
 - **本地下载上传**：安装包在本地下载后通过 SSH 上传，不依赖远端网络
 - **智能进程检测**：多重检测机制确保不重复启动
 - **自动版本管理**：支持指定版本，默认使用 v1.84.2
-- **扩展安装**：支持安装 VSCode 扩展
-- **配置管理**：支持自定义 VSCode 设置
+- **扩展安装**：支持安装 VSCodium 扩展
+- **配置管理**：支持自定义 VSCodium 设置
 
 ## 配置
 
@@ -186,7 +186,7 @@ DevSSH 的配置文件位于 `~/.config/devssh/config.json`，包含以下内容
       "host": "example.com",
       "port": "22",
       "username": "user",
-      "ide": "vscode",
+      "ide": "vscodium",
       "local_port": 8080,
       "started_at": "2024-01-11T10:30:00Z"
     }

@@ -181,7 +181,7 @@ func newUpCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&port, "port", "p", "22", "SSH port")
 	cmd.Flags().StringVar(&keyPath, "key", "", "SSH private key path")
 	cmd.Flags().StringVar(&password, "password", "", "SSH password")
-	cmd.Flags().StringVar(&ideType, "ide", "vscode", "Web IDE type (vscode, code-server)")
+	cmd.Flags().StringVar(&ideType, "ide", "vscodium", "Web IDE type (vscodium, code-server)")
 	cmd.Flags().IntVar(&idePort, "ide-port", 10081, "Port for IDE")
 	cmd.Flags().StringVar(&version, "version", "1.116.02821", "IDE version")
 	cmd.Flags().StringSliceVar(&forwards, "forward", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
