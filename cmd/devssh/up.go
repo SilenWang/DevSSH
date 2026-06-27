@@ -162,14 +162,21 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	logger.Infof("Target platform: %s/%s", remoteOS, remoteArch)
 
 	logger.Infof("Checking devssh on remote...")
-	exists, remoteVersion, _ := checkRemoteDevSSH(client)
+	exists, remoteVersion, err := checkRemoteDevSSH(client)
+	if err != nil {
+		logger.Debugf("devssh check error: %v", err)
+	}
+	if !exists {
+		logger.Infof("devssh binary not found on remote, deploying %s...", GetVersion())
+	} else if remoteVersion != GetVersion() {
+		logger.Infof("devssh version mismatch: remote=%s, expected=%s, deploying...", remoteVersion, GetVersion())
+	} else {
+		logger.Infof("devssh %s is already installed", remoteVersion)
+	}
 	if !exists || remoteVersion != GetVersion() {
-		logger.Infof("Deploying devssh %s...", GetVersion())
 		if err := deployDevSSH(client, GetVersion(), logger); err != nil {
 			return fmt.Errorf("failed to deploy devssh: %w", err)
 		}
-	} else {
-		logger.Infof("devssh %s is already installed", remoteVersion)
 	}
 
 	logger.Infof("Checking VSCode installation on remote...")
