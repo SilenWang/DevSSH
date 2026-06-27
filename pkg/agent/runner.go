@@ -3,6 +3,7 @@ package agent
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,7 +29,6 @@ type Runner struct {
 	logFile        string
 	vscodiumDir    string
 	serverPath     string
-	versionFile    string
 	serverPID      int
 }
 
@@ -51,7 +51,6 @@ func NewRunner() (*Runner, error) {
 		logFile:     logFile,
 		vscodiumDir: vscodiumDir,
 		serverPath:  filepath.Join(vscodiumDir, "bin", "codium-server"),
-		versionFile: filepath.Join(vscodiumDir, "version"),
 	}, nil
 }
 
@@ -86,23 +85,22 @@ func (r *Runner) Install(version string) error {
 
 	os.Remove(downloadPath)
 
-	if err := r.saveVersion(version); err != nil {
-		logging.Warnf("Failed to save version file: %v", err)
-	}
-
 	return nil
 }
 
-func (r *Runner) saveVersion(version string) error {
-	return os.WriteFile(r.versionFile, []byte(version), 0644)
-}
-
 func (r *Runner) GetInstalledVersion() string {
-	data, err := os.ReadFile(r.versionFile)
+	productPath := filepath.Join(r.vscodiumDir, "product.json")
+	data, err := os.ReadFile(productPath)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(data))
+	var info struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(data, &info); err != nil {
+		return ""
+	}
+	return info.Version
 }
 
 func (r *Runner) Start(port int) error {
@@ -174,7 +172,8 @@ func (r *Runner) IsInstalled() bool {
 	if _, err := os.Stat(r.serverPath); err != nil {
 		return false
 	}
-	if _, err := os.Stat(r.versionFile); err != nil {
+	productPath := filepath.Join(r.vscodiumDir, "product.json")
+	if _, err := os.Stat(productPath); err != nil {
 		return false
 	}
 	return true
@@ -393,12 +392,6 @@ func (r *Runner) InstallFromTar(tarPath string, version string) error {
 
 	if err := r.extract(tarPath); err != nil {
 		return fmt.Errorf("failed to extract: %w", err)
-	}
-
-	if version != "" {
-		if err := r.saveVersion(version); err != nil {
-			logging.Warnf("Failed to save version file: %v", err)
-		}
 	}
 
 	logging.Infof("VSCode installed successfully")
