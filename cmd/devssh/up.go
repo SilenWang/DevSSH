@@ -250,7 +250,7 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 
 	vscodiumCheckCmdStr := "\"$HOME/.devssh/bin/devssh\" agent is-running"
 	checkOutput, cmdErr := client.RunCommand(vscodiumCheckCmdStr)
-	if cmdErr == nil && strings.Contains(checkOutput, "running") {
+	if cmdErr == nil && strings.TrimSpace(checkOutput) == "running" {
 		isRunning = true
 	}
 
