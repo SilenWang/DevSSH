@@ -3,6 +3,7 @@ package agent
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,7 +29,6 @@ type Runner struct {
 	logFile        string
 	vscodiumDir    string
 	serverPath     string
-	versionFile    string
 	serverPID      int
 }
 
@@ -51,7 +51,6 @@ func NewRunner() (*Runner, error) {
 		logFile:     logFile,
 		vscodiumDir: vscodiumDir,
 		serverPath:  filepath.Join(vscodiumDir, "bin", "codium-server"),
-		versionFile: filepath.Join(vscodiumDir, "version"),
 	}, nil
 }
 
@@ -66,7 +65,7 @@ func (r *Runner) Install(version string) error {
 
 	logging.Infof("Downloading VSCodium reh-web...")
 
-	url := download.GetVSCodeDownloadURL(version, runtime.GOOS, runtime.GOARCH)
+	url := download.GetVSCodiumDownloadURL(version, runtime.GOOS, runtime.GOARCH)
 	logging.Infof("%s", url)
 	downloadPath := filepath.Join(r.workDir, fmt.Sprintf("vscodium-reh-web-%s.tar.gz", version))
 
@@ -86,26 +85,27 @@ func (r *Runner) Install(version string) error {
 
 	os.Remove(downloadPath)
 
-	r.saveVersion(version)
-
 	return nil
 }
 
-func (r *Runner) saveVersion(version string) {
-	os.WriteFile(r.versionFile, []byte(version), 0644)
-}
-
 func (r *Runner) GetInstalledVersion() string {
-	data, err := os.ReadFile(r.versionFile)
+	productPath := filepath.Join(r.vscodiumDir, "product.json")
+	data, err := os.ReadFile(productPath)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(data))
+	var info struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(data, &info); err != nil {
+		return ""
+	}
+	return info.Version
 }
 
 func (r *Runner) Start(port int) error {
 	if !r.IsInstalled() {
-		return fmt.Errorf("VSCode is not installed. Run 'devssh agent install' first")
+		return fmt.Errorf("VSCodium is not installed. Run 'devssh agent install' first")
 	}
 
 	if r.IsRunning() {
@@ -139,7 +139,7 @@ func (r *Runner) Start(port int) error {
 
 	r.savePID(r.serverPID, port)
 
-	logging.Infof("VSCode started with PID %d", r.serverPID)
+	logging.Infof("VSCodium started with PID %d", r.serverPID)
 
 	return nil
 }
@@ -163,14 +163,20 @@ func (r *Runner) Stop() error {
 
 	r.removePID()
 
-	logging.Infof("VSCode stopped")
+	logging.Infof("VSCodium stopped")
 
 	return nil
 }
 
 func (r *Runner) IsInstalled() bool {
-	_, err := os.Stat(r.serverPath)
-	return err == nil
+	if _, err := os.Stat(r.serverPath); err != nil {
+		return false
+	}
+	productPath := filepath.Join(r.vscodiumDir, "product.json")
+	if _, err := os.Stat(productPath); err != nil {
+		return false
+	}
+	return true
 }
 
 func (r *Runner) IsRunning() bool {
@@ -374,7 +380,7 @@ func getHomeDir() (string, error) {
 
 func (r *Runner) InstallFromTar(tarPath string, version string) error {
 	if r.IsInstalled() {
-		logging.Infof("VSCode is already installed")
+		logging.Infof("VSCodium is already installed")
 		return nil
 	}
 
@@ -388,18 +394,14 @@ func (r *Runner) InstallFromTar(tarPath string, version string) error {
 		return fmt.Errorf("failed to extract: %w", err)
 	}
 
-	if version != "" {
-		r.saveVersion(version)
-	}
-
-	logging.Infof("VSCode installed successfully")
+	logging.Infof("VSCodium installed successfully")
 	return nil
 }
 
 func (r *Runner) Uninstall() error {
 	if r.IsRunning() {
 		if err := r.Stop(); err != nil {
-			return fmt.Errorf("failed to stop VSCode: %w", err)
+			return fmt.Errorf("failed to stop VSCodium: %w", err)
 		}
 	}
 
@@ -411,7 +413,7 @@ func (r *Runner) Uninstall() error {
 
 	r.removePID()
 
-	logging.Infof("VSCode uninstalled successfully")
+	logging.Infof("VSCodium uninstalled successfully")
 	return nil
 }
 

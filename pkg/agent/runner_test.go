@@ -62,6 +62,7 @@ func TestRunnerIsInstalled(t *testing.T) {
 
 	os.MkdirAll(filepath.Dir(runner.GetServerPath()), 0755)
 	os.WriteFile(runner.GetServerPath(), []byte("fake server"), 0755)
+	os.WriteFile(filepath.Join(runner.GetVSCodiumDir(), "product.json"), []byte("{}"), 0644)
 
 	assert.True(t, runner.IsInstalled())
 }
@@ -108,8 +109,9 @@ func createTestTarGz(t *testing.T, entries map[string]string) string {
 func TestRunnerExtract(t *testing.T) {
 	setupTestHome(t)
 	entries := map[string]string{
-		"vscodium-reh-web-linux-x64-1.0.0/bin/codium-server":                "fake binary",
+		"vscodium-reh-web-linux-x64-1.0.0/bin/codium-server":                "fake binary content",
 		"vscodium-reh-web-linux-x64-1.0.0/resources/app/out/index.js":       "fake js",
+		"vscodium-reh-web-linux-x64-1.0.0/product.json":                      `{"version":"1.0.0"}`,
 	}
 	tarGzPath := createTestTarGz(t, entries)
 
@@ -131,7 +133,8 @@ func TestRunnerExtract(t *testing.T) {
 func TestRunnerInstallFromTar(t *testing.T) {
 	setupTestHome(t)
 	entries := map[string]string{
-		"vscodium-reh-web-1.0.0/bin/codium-server": "binary",
+		"vscodium-reh-web-linux-x64-1.0.0/bin/codium-server": "binary",
+		"vscodium-reh-web-linux-x64-1.0.0/product.json":       `{"version":"1.0.0"}`,
 	}
 	tarGzPath := createTestTarGz(t, entries)
 
@@ -147,6 +150,7 @@ func TestRunnerInstallFromTarIdempotent(t *testing.T) {
 	setupTestHome(t)
 	entries := map[string]string{
 		"vscodium-reh-web-1.0.0/bin/codium-server": "binary",
+		"vscodium-reh-web-1.0.0/product.json":       `{"version":"1.0.0"}`,
 	}
 	tarGzPath := createTestTarGz(t, entries)
 
@@ -161,6 +165,7 @@ func TestRunnerUninstall(t *testing.T) {
 	setupTestHome(t)
 	entries := map[string]string{
 		"vscodium-reh-web-1.0.0/bin/codium-server": "binary",
+		"vscodium-reh-web-1.0.0/product.json":       `{"version":"1.0.0"}`,
 	}
 	tarGzPath := createTestTarGz(t, entries)
 

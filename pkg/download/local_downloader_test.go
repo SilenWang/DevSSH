@@ -21,34 +21,34 @@ func newTestDownloader(t *testing.T) *LocalDownloader {
 	return NewLocalDownloader(cacheDir, logger)
 }
 
-func TestGetVSCodeDownloadURL_Default(t *testing.T) {
-	url := GetVSCodeDownloadURL("1.116.02821", "linux", "amd64")
+func TestGetVSCodiumDownloadURL_Default(t *testing.T) {
+	url := GetVSCodiumDownloadURL("1.116.02821", "linux", "amd64")
 	assert.Equal(t, "https://github.com/VSCodium/vscodium/releases/download/1.116.02821/vscodium-reh-web-linux-x64-1.116.02821.tar.gz", url)
 }
 
-func TestGetVSCodeDownloadURL_DarwinARM64(t *testing.T) {
-	url := GetVSCodeDownloadURL("1.116.02821", "darwin", "arm64")
+func TestGetVSCodiumDownloadURL_DarwinARM64(t *testing.T) {
+	url := GetVSCodiumDownloadURL("1.116.02821", "darwin", "arm64")
 	assert.Equal(t, "https://github.com/VSCodium/vscodium/releases/download/1.116.02821/vscodium-reh-web-darwin-arm64-1.116.02821.tar.gz", url)
 }
 
-func TestGetVSCodeDownloadURL_EnvOverride(t *testing.T) {
+func TestGetVSCodiumDownloadURL_EnvOverride(t *testing.T) {
 	t.Setenv(config.EnvVSCodeDownloadURL, "http://localhost:9999/vscode-{{version}}-{{os}}-{{arch}}.tar.gz")
-	url := GetVSCodeDownloadURL("1.0.0", "linux", "amd64")
+	url := GetVSCodiumDownloadURL("1.0.0", "linux", "amd64")
 	assert.Equal(t, "http://localhost:9999/vscode-1.0.0-linux-amd64.tar.gz", url)
 }
 
-func TestGetVSCodeDownloadURL_EnvOverrideThenDefault(t *testing.T) {
+func TestGetVSCodiumDownloadURL_EnvOverrideThenDefault(t *testing.T) {
 	os.Setenv(config.EnvVSCodeDownloadURL, "http://localhost:9999/test")
-	urlWithEnv := GetVSCodeDownloadURL("1.0", "linux", "amd64")
+	urlWithEnv := GetVSCodiumDownloadURL("1.0", "linux", "amd64")
 	assert.Equal(t, "http://localhost:9999/test", urlWithEnv)
 	os.Unsetenv(config.EnvVSCodeDownloadURL)
 
-	urlDefault := GetVSCodeDownloadURL("1.116.02821", "linux", "amd64")
+	urlDefault := GetVSCodiumDownloadURL("1.116.02821", "linux", "amd64")
 	assert.Equal(t, "https://github.com/VSCodium/vscodium/releases/download/1.116.02821/vscodium-reh-web-linux-x64-1.116.02821.tar.gz", urlDefault)
 }
 
-func TestGetVSCodeDownloadURL_UnsupportedArch(t *testing.T) {
-	url := GetVSCodeDownloadURL("1.0", "linux", "riscv64")
+func TestGetVSCodiumDownloadURL_UnsupportedArch(t *testing.T) {
+	url := GetVSCodiumDownloadURL("1.0", "linux", "riscv64")
 	assert.Contains(t, url, "riscv64")
 }
 

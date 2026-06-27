@@ -26,15 +26,21 @@ func uploadToRemote(client *ssh.Client, localPath, remotePath string) error {
 }
 
 func checkRemoteDevSSH(client *ssh.Client) (exists bool, version string, err error) {
-	cmd := "test -f ~/.devssh/bin/devssh && ~/.devssh/bin/devssh --version 2>/dev/null || echo 'not_found'"
-	output, err := client.RunCommand(cmd)
+	existsCmd := "test -f \"$HOME/.devssh/bin/devssh\""
+	if _, err := client.RunCommand(existsCmd); err != nil {
+		return false, "", nil
+	}
+
+	versionCmd := "\"$HOME/.devssh/bin/devssh\" --version 2>/dev/null || echo 'unknown'"
+	output, err := client.RunCommand(versionCmd)
 	if err != nil {
-		return false, "", nil
+		return true, "", nil
 	}
-	if strings.Contains(output, "not_found") {
-		return false, "", nil
-	}
+
 	version = strings.TrimSpace(output)
+	if version == "unknown" {
+		return true, "", nil
+	}
 	version = strings.TrimPrefix(version, "devssh version ")
 	return true, version, nil
 }
@@ -104,18 +110,20 @@ func deployDevSSH(client *ssh.Client, version string, logger log.Logger) error {
 	}
 
 	logger.Infof("Uploading devssh to remote...")
-	if err := uploadToRemote(client, localPath, "~/.devssh/bin/devssh"); err != nil {
+	if err := uploadToRemote(client, localPath, "$HOME/.devssh/bin/devssh"); err != nil {
 		return fmt.Errorf("failed to upload devssh: %w", err)
 	}
 
 	logger.Infof("Setting executable permissions...")
-	client.RunCommand("chmod +x ~/.devssh/bin/devssh")
+	if _, err := client.RunCommand("chmod +x \"$HOME/.devssh/bin/devssh\""); err != nil {
+		logger.Warnf("Failed to set executable permissions: %v", err)
+	}
 
 	return nil
 }
 
 func runRemoteAgentCommand(client *ssh.Client, args string) (string, error) {
-	cmd := fmt.Sprintf("~/.devssh/bin/devssh agent %s", args)
+	cmd := fmt.Sprintf("\"$HOME/.devssh/bin/devssh\" agent %s", args)
 	output, err := client.RunCommand(cmd)
 	if err != nil {
 		return output, fmt.Errorf("failed to run agent command: %w, output: %s", err, output)
@@ -123,14 +131,14 @@ func runRemoteAgentCommand(client *ssh.Client, args string) (string, error) {
 	return output, nil
 }
 
-func downloadVSCodeLocal(version, os, arch string, logger log.Logger) (string, error) {
+func downloadVSCodiumLocal(version, os, arch string, logger log.Logger) (string, error) {
 	cacheDir, err := getCacheDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get cache directory: %w", err)
 	}
 
 	downloader := download.NewLocalDownloader(cacheDir, logger)
-	return downloader.DownloadVSCode(version, os, arch)
+	return downloader.DownloadVSCodium(version, os, arch)
 }
 
 func getCacheDir() (string, error) {
@@ -163,21 +171,28 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	logger.Infof("Target platform: %s/%s", remoteOS, remoteArch)
 
 	logger.Infof("Checking devssh on remote...")
-	exists, remoteVersion, _ := checkRemoteDevSSH(client)
-	if !exists || remoteVersion != GetVersion() {
-		logger.Infof("Deploying devssh %s...", GetVersion())
-		if err := deployDevSSH(client, GetVersion(), logger); err != nil {
-			return fmt.Errorf("failed to deploy devssh: %w", err)
-		}
+	exists, remoteVersion, err := checkRemoteDevSSH(client)
+	if err != nil {
+		logger.Debugf("devssh check error: %v", err)
+	}
+	if !exists {
+		logger.Infof("devssh binary not found on remote, deploying %s...", GetVersion())
+	} else if remoteVersion != GetVersion() {
+		logger.Infof("devssh version mismatch: remote=%s, expected=%s, deploying...", remoteVersion, GetVersion())
 	} else {
 		logger.Infof("devssh %s is already installed", remoteVersion)
 	}
+	if !exists || remoteVersion != GetVersion() {
+		if err := deployDevSSH(client, GetVersion(), logger); err != nil {
+			return fmt.Errorf("failed to deploy devssh: %w", err)
+		}
+	}
 
-	logger.Infof("Checking VSCode installation on remote...")
-	checkCmd := "test -f ~/.devssh/vscodium/bin/codium-server && echo 'installed' || echo 'not_installed'"
+	logger.Infof("Checking VSCodium installation on remote...")
+	checkCmd := "test -f \"$HOME/.devssh/vscodium/bin/codium-server\" && echo 'installed' || echo 'not_installed'"
 	checkOutput, checkErr := client.RunCommand(checkCmd)
 	if checkErr != nil {
-		return fmt.Errorf("failed to check remote VSCode: %w", checkErr)
+		return fmt.Errorf("failed to check remote VSCodium: %w", checkErr)
 	}
 
 	if version == "" {
@@ -188,55 +203,60 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	if strings.Contains(checkOutput, "not_installed") {
 		needsReinstall = true
 	} else {
-		versionCheckCmd := "cat ~/.devssh/vscodium/version 2>/dev/null || echo 'unknown'"
+		versionCheckCmd := "awk -F'\"' '/\"version\"[[:space:]]*:[[:space:]]*\"/{v=$4} END{print v}' \"$HOME/.devssh/vscodium/product.json\" 2>/dev/null"
 		versionOutput, _ := client.RunCommand(versionCheckCmd)
 		installedVersion := strings.TrimSpace(versionOutput)
+		if installedVersion == "" {
+			installedVersion = "unknown"
+		}
 		if installedVersion != version {
-			logger.Infof("VSCode version mismatch: installed=%s, expected=%s", installedVersion, version)
+			logger.Infof("VSCodium version mismatch: installed=%s, expected=%s", installedVersion, version)
 			needsReinstall = true
 		}
 	}
 
 	if needsReinstall {
-		logger.Infof("Stopping VSCode if running...")
-		client.RunCommand("~/.devssh/bin/devssh agent stop")
+		logger.Infof("Stopping VSCodium if running...")
+		client.RunCommand("\"$HOME/.devssh/bin/devssh\" agent stop")
 
 		logger.Infof("Removing existing VSCodium installation...")
-		client.RunCommand("rm -rf ~/.devssh/vscodium")
+		if _, err := client.RunCommand("rm -rf \"$HOME/.devssh/vscodium\""); err != nil {
+			logger.Warnf("Failed to remove old VSCodium installation, will attempt to overwrite: %v", err)
+		}
 
-		logger.Infof("Downloading VSCode %s for %s/%s...", version, remoteOS, remoteArch)
-		vscodePath, err := downloadVSCodeLocal(version, remoteOS, remoteArch, logger)
+		logger.Infof("Downloading VSCodium %s for %s/%s...", version, remoteOS, remoteArch)
+		vscodiumPath, err := downloadVSCodiumLocal(version, remoteOS, remoteArch, logger)
 		if err != nil {
-			return fmt.Errorf("failed to download VSCode: %w", err)
+			return fmt.Errorf("failed to download VSCodium: %w", err)
 		}
 
 		logger.Infof("Uploading VSCodium to remote...")
-		if err := uploadToRemote(client, vscodePath, "~/.devssh/vscodium-reh-web.tar.gz"); err != nil {
+		if err := uploadToRemote(client, vscodiumPath, "$HOME/.devssh/vscodium-reh-web.tar.gz"); err != nil {
 			return fmt.Errorf("failed to upload VSCodium: %w", err)
 		}
 
 		logger.Infof("Installing VSCodium on remote...")
-		installCmd := fmt.Sprintf("install --local-tar ~/.devssh/vscodium-reh-web.tar.gz --version %s", version)
+		installCmd := fmt.Sprintf("install --local-tar \"$HOME/.devssh/vscodium-reh-web.tar.gz\" --version %s", version)
 		if _, err := runRemoteAgentCommand(client, installCmd); err != nil {
-			return fmt.Errorf("failed to install VSCode: %w", err)
+			return fmt.Errorf("failed to install VSCodium: %w", err)
 		}
 	} else {
-		logger.Infof("VSCode is already installed, skipping installation")
+		logger.Infof("VSCodium is already installed, skipping installation")
 	}
 
-	logger.Infof("Checking VSCode status on remote...")
+	logger.Infof("Checking VSCodium status on remote...")
 	currentPort := 0
 	isRunning := false
 
-	vscodeCheckCmdStr := "~/.devssh/bin/devssh agent is-running"
-	checkOutput, cmdErr := client.RunCommand(vscodeCheckCmdStr)
+	vscodiumCheckCmdStr := "\"$HOME/.devssh/bin/devssh\" agent is-running"
+	checkOutput, cmdErr := client.RunCommand(vscodiumCheckCmdStr)
 	if cmdErr == nil && strings.Contains(checkOutput, "running") {
 		isRunning = true
 	}
 
 	if isRunning {
-		vscodePortCmdStr := "~/.devssh/bin/devssh agent get-port"
-		portOutput, cmdErr := client.RunCommand(vscodePortCmdStr)
+		vscodiumPortCmdStr := "\"$HOME/.devssh/bin/devssh\" agent get-port"
+		portOutput, cmdErr := client.RunCommand(vscodiumPortCmdStr)
 		if cmdErr == nil {
 			portStr := strings.TrimSpace(portOutput)
 			currentPort, _ = strconv.Atoi(portStr)
@@ -245,36 +265,36 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 
 	shouldStart := false
 	if !isRunning {
-		logger.Infof("VSCode is not running, will start it")
+		logger.Infof("VSCodium is not running, will start it")
 		shouldStart = true
 	} else if currentPort == 0 {
-		logger.Infof("VSCode is running but port is unknown, restarting with specified port %d...", idePort)
-		logger.Infof("Stopping VSCode...")
-		_, cmdErr := client.RunCommand("~/.devssh/bin/devssh agent stop")
+		logger.Infof("VSCodium is running but port is unknown, restarting with specified port %d...", idePort)
+		logger.Infof("Stopping VSCodium...")
+		_, cmdErr := client.RunCommand("\"$HOME/.devssh/bin/devssh\" agent stop")
 		if cmdErr != nil {
-			pidCmd := "cat ~/.devssh/agent.pid | grep pid= | cut -d= -f2"
+			pidCmd := "cat \"$HOME/.devssh/agent.pid\" | grep pid= | cut -d= -f2"
 			pidOutput, _ := client.RunCommand(pidCmd)
-			return fmt.Errorf("failed to stop VSCode (pid: %s). Please manually kill the process and try again", strings.TrimSpace(pidOutput))
+			return fmt.Errorf("failed to stop VSCodium (pid: %s). Please manually kill the process and try again", strings.TrimSpace(pidOutput))
 		}
 		shouldStart = true
 	} else if currentPort > 0 && currentPort != idePort {
-		logger.Warnf("VSCode is running on port %d, but requested port is %d", currentPort, idePort)
-		logger.Infof("Stopping VSCode...")
-		_, cmdErr := client.RunCommand("~/.devssh/bin/devssh agent stop")
+		logger.Warnf("VSCodium is running on port %d, but requested port is %d", currentPort, idePort)
+		logger.Infof("Stopping VSCodium...")
+		_, cmdErr := client.RunCommand("\"$HOME/.devssh/bin/devssh\" agent stop")
 		if cmdErr != nil {
-			pidCmd := "cat ~/.devssh/agent.pid | grep pid= | cut -d= -f2"
+			pidCmd := "cat \"$HOME/.devssh/agent.pid\" | grep pid= | cut -d= -f2"
 			pidOutput, _ := client.RunCommand(pidCmd)
-			return fmt.Errorf("failed to stop VSCode (pid: %s). Please manually kill the process and try again", strings.TrimSpace(pidOutput))
+			return fmt.Errorf("failed to stop VSCodium (pid: %s). Please manually kill the process and try again", strings.TrimSpace(pidOutput))
 		}
 		shouldStart = true
 	} else {
-		logger.Infof("VSCode is already running on port %d, skipping start", currentPort)
+		logger.Infof("VSCodium is already running on port %d, skipping start", currentPort)
 	}
 
 	if shouldStart {
-		logger.Infof("Starting VSCode on port %d...", idePort)
+		logger.Infof("Starting VSCodium on port %d...", idePort)
 		if _, err := runRemoteAgentCommand(client, fmt.Sprintf("start --port %d", idePort)); err != nil {
-			return fmt.Errorf("failed to start VSCode: %w", err)
+			return fmt.Errorf("failed to start VSCodium: %w", err)
 		}
 	}
 
