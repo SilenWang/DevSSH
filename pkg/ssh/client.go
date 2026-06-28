@@ -363,13 +363,8 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 		c.logger.Infof("Added password authentication method")
 	}
 
-	// 尝试 SSH agent
-	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
-		authMethods = append(authMethods, ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers))
-		c.logger.Infof("Added SSH agent authentication method")
-	}
-
-	// 尝试配置文件中指定的私钥文件
+	// 先尝试配置文件中指定的私钥文件（优先于 SSH agent，避免 agent 中大量无用密钥
+	// 消耗服务器的 MaxAuthTries 限制，导致指定密钥无法被尝试）
 	if c.config.KeyPath != "" {
 		if _, err := os.Stat(c.config.KeyPath); err == nil {
 			key, err := os.ReadFile(c.config.KeyPath)
@@ -426,6 +421,13 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 				break
 			}
 		}
+	}
+
+	// 最后尝试 SSH agent（作为备选，避免 agent 中大量无用密钥消耗服务器的
+	// MaxAuthTries 限制，导致前面配置的密钥无法被尝试）
+	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
+		authMethods = append(authMethods, ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers))
+		c.logger.Infof("Added SSH agent authentication method")
 	}
 
 	if len(authMethods) == 0 {
