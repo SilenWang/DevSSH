@@ -380,17 +380,18 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 				if err != nil {
 					// 私钥可能有密码保护，尝试使用密码解析
 					if c.config.Password != "" {
-						signer, err := ssh.ParsePrivateKeyWithPassphrase(key, []byte(c.config.Password))
-						if err == nil {
+						signer, innerErr := ssh.ParsePrivateKeyWithPassphrase(key, []byte(c.config.Password))
+						if innerErr == nil {
 							authMethods = append(authMethods, ssh.PublicKeys(signer))
 							c.logger.Infof("Added private key authentication (with passphrase) from config: %s", c.config.KeyPath)
 						} else {
-							c.logger.Warnf("Failed to parse private key (even with passphrase): %v", err)
+							c.logger.Warnf("Failed to parse private key (even with passphrase): %v", innerErr)
 						}
 					} else {
 						c.logger.Warnf("Failed to parse private key (may be passphrase protected): %v", err)
 					}
 				} else {
+					signer = c.wrapSignerWithAlgorithms(signer)
 					authMethods = append(authMethods, ssh.PublicKeys(signer))
 					c.logger.Infof("Added private key authentication from config: %s", c.config.KeyPath)
 				}
@@ -416,12 +417,13 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 					continue
 				}
 
-				signer, err := ssh.ParsePrivateKey(key)
-				if err != nil {
+				keySigner, keyErr := ssh.ParsePrivateKey(key)
+				if keyErr != nil {
 					continue
 				}
 
-				authMethods = append(authMethods, ssh.PublicKeys(signer))
+				keySigner = c.wrapSignerWithAlgorithms(keySigner)
+				authMethods = append(authMethods, ssh.PublicKeys(keySigner))
 				c.logger.Infof("Added default private key authentication: %s", keyPath)
 				break
 			}
@@ -434,6 +436,27 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 
 	c.logger.Infof("Total authentication methods: %d", len(authMethods))
 	return authMethods, nil
+}
+
+func (c *Client) wrapSignerWithAlgorithms(signer ssh.Signer) ssh.Signer {
+	if signer.PublicKey().Type() != "ssh-rsa" {
+		return signer
+	}
+	algSigner, ok := signer.(ssh.AlgorithmSigner)
+	if !ok {
+		return signer
+	}
+	algos := []string{
+		ssh.KeyAlgoRSASHA256,
+		ssh.KeyAlgoRSASHA512,
+		ssh.KeyAlgoRSA,
+	}
+	wrapped, err := ssh.NewSignerWithAlgorithms(algSigner, algos)
+	if err != nil {
+		c.logger.Warnf("Failed to wrap RSA signer with algorithms: %v", err)
+		return signer
+	}
+	return wrapped
 }
 
 func (c *Client) IsConnected() bool {
