@@ -382,7 +382,7 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 					if c.config.Password != "" {
 						signer, innerErr := ssh.ParsePrivateKeyWithPassphrase(key, []byte(c.config.Password))
 						if innerErr == nil {
-							authMethods = append(authMethods, ssh.PublicKeys(signer))
+							c.addKeySigner(&authMethods, signer, "with passphrase")
 							c.logger.Infof("Added private key authentication (with passphrase) from config: %s", c.config.KeyPath)
 						} else {
 							c.logger.Warnf("Failed to parse private key (even with passphrase): %v", innerErr)
@@ -391,9 +391,8 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 						c.logger.Warnf("Failed to parse private key (may be passphrase protected): %v", err)
 					}
 				} else {
-					signer = c.wrapSignerWithAlgorithms(signer)
-					authMethods = append(authMethods, ssh.PublicKeys(signer))
-					c.logger.Infof("Added private key authentication from config: %s", c.config.KeyPath)
+					c.addKeySigner(&authMethods, signer, "")
+					c.logger.Infof("Added private key authentication from config: %s (type: %s)", c.config.KeyPath, signer.PublicKey().Type())
 				}
 			}
 		} else {
@@ -422,9 +421,8 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 					continue
 				}
 
-				keySigner = c.wrapSignerWithAlgorithms(keySigner)
-				authMethods = append(authMethods, ssh.PublicKeys(keySigner))
-				c.logger.Infof("Added default private key authentication: %s", keyPath)
+				c.addKeySigner(&authMethods, keySigner, "default")
+				c.logger.Infof("Added default private key authentication: %s (type: %s)", keyPath, keySigner.PublicKey().Type())
 				break
 			}
 		}
@@ -438,25 +436,39 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 	return authMethods, nil
 }
 
-func (c *Client) wrapSignerWithAlgorithms(signer ssh.Signer) ssh.Signer {
-	if signer.PublicKey().Type() != "ssh-rsa" {
-		return signer
+// addKeySigner adds a signer to the auth methods.
+// For RSA keys, it adds both the original signer and a wrapped signer with
+// SHA-2 signature algorithms, covering both modern and legacy SSH servers.
+func (c *Client) addKeySigner(authMethods *[]ssh.AuthMethod, signer ssh.Signer, label string) {
+	keyType := signer.PublicKey().Type()
+	c.logger.Infof("Adding key signer: type=%s label=%s", keyType, label)
+
+	// Always add the signer as-is (default algorithm)
+	*authMethods = append(*authMethods, ssh.PublicKeys(signer))
+	c.logger.Debugf("Added default signer with algorithm: %s", keyType)
+
+	// For RSA keys, also add wrapped signers for SHA-2 algorithm support
+	if keyType == "ssh-rsa" {
+		algSigner, ok := signer.(ssh.AlgorithmSigner)
+		if !ok {
+			c.logger.Debugf("RSA signer does not implement AlgorithmSigner, skipping algorithm wrapping")
+			return
+		}
+
+		// Add wrapped signer with all RSA algorithms (SHA-2 preferred over SHA-1)
+		algos := []string{
+			ssh.KeyAlgoRSASHA256,
+			ssh.KeyAlgoRSASHA512,
+			ssh.KeyAlgoRSA,
+		}
+		wrapped, err := ssh.NewSignerWithAlgorithms(algSigner, algos)
+		if err != nil {
+			c.logger.Warnf("Failed to wrap RSA signer with algorithms: %v", err)
+		} else {
+			*authMethods = append(*authMethods, ssh.PublicKeys(wrapped))
+			c.logger.Infof("Added wrapped RSA signer with algorithms: rsa-sha2-256 > rsa-sha2-512 > ssh-rsa")
+		}
 	}
-	algSigner, ok := signer.(ssh.AlgorithmSigner)
-	if !ok {
-		return signer
-	}
-	algos := []string{
-		ssh.KeyAlgoRSASHA256,
-		ssh.KeyAlgoRSASHA512,
-		ssh.KeyAlgoRSA,
-	}
-	wrapped, err := ssh.NewSignerWithAlgorithms(algSigner, algos)
-	if err != nil {
-		c.logger.Warnf("Failed to wrap RSA signer with algorithms: %v", err)
-		return signer
-	}
-	return wrapped
 }
 
 func (c *Client) IsConnected() bool {
