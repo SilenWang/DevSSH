@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"devssh/pkg/logging"
 	"github.com/loft-sh/log"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 const (
@@ -363,8 +361,7 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 		c.logger.Infof("Added password authentication method")
 	}
 
-	// 先尝试配置文件中指定的私钥文件（优先于 SSH agent，避免 agent 中大量无用密钥
-	// 消耗服务器的 MaxAuthTries 限制，导致指定密钥无法被尝试）
+	// 尝试配置文件中指定的私钥文件（来自 --key 或 SSH config 的 IdentityFile）
 	if c.config.KeyPath != "" {
 		if _, err := os.Stat(c.config.KeyPath); err == nil {
 			key, err := os.ReadFile(c.config.KeyPath)
@@ -393,41 +390,6 @@ func (c *Client) getAuthMethods() ([]ssh.AuthMethod, error) {
 		} else {
 			c.logger.Warnf("Private key file not found: %s", c.config.KeyPath)
 		}
-	}
-
-	// 尝试默认的私钥位置
-	homeDir, err := os.UserHomeDir()
-	if err == nil {
-		defaultKeyPaths := []string{
-			filepath.Join(homeDir, ".ssh", "id_rsa"),
-			filepath.Join(homeDir, ".ssh", "id_ed25519"),
-			filepath.Join(homeDir, ".ssh", "id_ecdsa"),
-		}
-
-		for _, keyPath := range defaultKeyPaths {
-			if _, err := os.Stat(keyPath); err == nil {
-				key, err := os.ReadFile(keyPath)
-				if err != nil {
-					continue
-				}
-
-				keySigner, keyErr := ssh.ParsePrivateKey(key)
-				if keyErr != nil {
-					continue
-				}
-
-				c.addKeySigner(&authMethods, keySigner, "default")
-				c.logger.Infof("Added default private key authentication: %s (type: %s)", keyPath, keySigner.PublicKey().Type())
-				break
-			}
-		}
-	}
-
-	// 最后尝试 SSH agent（作为备选，避免 agent 中大量无用密钥消耗服务器的
-	// MaxAuthTries 限制，导致前面配置的密钥无法被尝试）
-	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
-		authMethods = append(authMethods, ssh.PublicKeysCallback(agent.NewClient(sshAgent).Signers))
-		c.logger.Infof("Added SSH agent authentication method")
 	}
 
 	if len(authMethods) == 0 {
