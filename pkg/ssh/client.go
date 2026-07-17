@@ -178,18 +178,24 @@ func (c *Client) dial() (*ssh.Client, error) {
 		c.logger.Infof("Using private key: %s", c.config.KeyPath)
 	}
 
-	tcpConn, tcpErr := net.DialTimeout("tcp", address, c.config.Timeout)
-	if tcpErr != nil {
-		return nil, fmt.Errorf("TCP connection failed: %w", tcpErr)
-	}
-	tcpConn.Close()
-	c.logger.Infof("TCP connection successful, attempting SSH handshake...")
-
-	cli, err := ssh.Dial("tcp", address, sshConfig)
+	netConn, err := net.DialTimeout("tcp", address, c.config.Timeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial SSH: %w", err)
+		return nil, fmt.Errorf("TCP connection failed: %w", err)
 	}
-	return cli, nil
+
+	if tcpConn, ok := netConn.(*net.TCPConn); ok {
+		_ = tcpConn.SetNoDelay(true)
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
+	}
+
+	sshConn, chans, reqs, err := ssh.NewClientConn(netConn, address, sshConfig)
+	if err != nil {
+		netConn.Close()
+		return nil, fmt.Errorf("SSH handshake failed: %w", err)
+	}
+
+	return ssh.NewClient(sshConn, chans, reqs), nil
 }
 
 func (c *Client) startKeepaliveLocked(interval time.Duration) {

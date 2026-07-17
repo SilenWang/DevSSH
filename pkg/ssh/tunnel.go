@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"devssh/pkg/logging"
 	"github.com/loft-sh/log"
@@ -17,15 +18,18 @@ type TunnelConfig struct {
 	LocalPort  int
 	RemoteHost string
 	RemotePort int
+
+	Dialer func() (*ssh.Client, error)
 }
 
 type Tunnel struct {
-	config   *TunnelConfig
-	client   *ssh.Client
-	listener net.Listener
-	closed   bool
-	mu       sync.Mutex
-	logger   log.Logger
+	config    *TunnelConfig
+	client    *ssh.Client
+	dedicated *ssh.Client
+	listener  net.Listener
+	closed    bool
+	mu        sync.Mutex
+	logger    log.Logger
 }
 
 func (t *Tunnel) GetConfig() *TunnelConfig {
@@ -41,7 +45,7 @@ func (t *Tunnel) SetSSHClient(client *ssh.Client) {
 }
 
 const (
-	copyBufferSize = 256 * 1024
+	tcpKeepalivePeriod = 15 * time.Second
 )
 
 func NewTunnel(client *ssh.Client, config *TunnelConfig) *Tunnel {
@@ -68,9 +72,21 @@ func (t *Tunnel) Start() error {
 		return fmt.Errorf("tunnel is closed")
 	}
 
+	if t.config.Dialer != nil {
+		dedicated, err := t.config.Dialer()
+		if err != nil {
+			return fmt.Errorf("failed to create dedicated SSH connection: %w", err)
+		}
+		t.dedicated = dedicated
+	}
+
 	localAddr := net.JoinHostPort(t.config.LocalHost, strconv.Itoa(t.config.LocalPort))
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
+		if t.dedicated != nil {
+			t.dedicated.Close()
+			t.dedicated = nil
+		}
 		return fmt.Errorf("failed to listen on local address: %w", err)
 	}
 
@@ -86,6 +102,11 @@ func (t *Tunnel) Stop() error {
 	defer t.mu.Unlock()
 
 	t.closed = true
+
+	if t.dedicated != nil {
+		t.dedicated.Close()
+		t.dedicated = nil
+	}
 
 	if t.listener != nil {
 		return t.listener.Close()
@@ -108,40 +129,50 @@ func (t *Tunnel) acceptConnections() {
 	}
 }
 
+func optimizeTCPConn(conn net.Conn) {
+	tcpConn, ok := conn.(*net.TCPConn)
+	if !ok {
+		return
+	}
+	_ = tcpConn.SetNoDelay(true)
+	_ = tcpConn.SetKeepAlive(true)
+	_ = tcpConn.SetKeepAlivePeriod(tcpKeepalivePeriod)
+}
+
 func (t *Tunnel) handleConnection(localConn net.Conn) {
 	defer localConn.Close()
 
+	optimizeTCPConn(localConn)
+
+	sshClient := t.client
+	if t.dedicated != nil {
+		sshClient = t.dedicated
+	}
+
 	remoteAddr := net.JoinHostPort(t.config.RemoteHost, strconv.Itoa(t.config.RemotePort))
-	remoteConn, err := t.client.Dial("tcp", remoteAddr)
+	remoteConn, err := sshClient.Dial("tcp", remoteAddr)
 	if err != nil {
 		t.logger.Errorf("Failed to dial remote %s: %v", remoteAddr, err)
 		return
 	}
 	defer remoteConn.Close()
 
-	done := make(chan error, 2)
+	optimizeTCPConn(remoteConn)
+
+	done := make(chan struct{}, 2)
 
 	go func() {
-		buf := make([]byte, copyBufferSize)
-		_, err := io.CopyBuffer(remoteConn, localConn, buf)
-		done <- err
+		defer func() { done <- struct{}{} }()
+		io.Copy(remoteConn, localConn)
 	}()
 
 	go func() {
-		buf := make([]byte, copyBufferSize)
-		_, err := io.CopyBuffer(localConn, remoteConn, buf)
-		done <- err
+		defer func() { done <- struct{}{} }()
+		io.Copy(localConn, remoteConn)
 	}()
 
-	err1 := <-done
-	err2 := <-done
-
-	if err1 != nil {
-		t.logger.Debugf("Forward local->remote error: %v", err1)
-	}
-	if err2 != nil {
-		t.logger.Debugf("Forward remote->local error: %v", err2)
-	}
+	<-done
+	<-done
 }
 
 

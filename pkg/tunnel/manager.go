@@ -5,12 +5,13 @@ import (
 	"sync"
 
 	"devssh/pkg/logging"
-	"devssh/pkg/ssh"
+	sshclient "devssh/pkg/ssh"
 	"github.com/loft-sh/log"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 type TunnelManager struct {
-	tunnels map[string]*ssh.Tunnel
+	tunnels map[string]*sshclient.Tunnel
 	mu      sync.RWMutex
 	logger  log.Logger
 }
@@ -18,19 +19,19 @@ type TunnelManager struct {
 func NewTunnelManager() *TunnelManager {
 	logger := logging.InitQuiet()
 	return &TunnelManager{
-		tunnels: make(map[string]*ssh.Tunnel),
+		tunnels: make(map[string]*sshclient.Tunnel),
 		logger:  logger,
 	}
 }
 
 func NewTunnelManagerWithLogger(logger log.Logger) *TunnelManager {
 	return &TunnelManager{
-		tunnels: make(map[string]*ssh.Tunnel),
+		tunnels: make(map[string]*sshclient.Tunnel),
 		logger:  logger,
 	}
 }
 
-func (m *TunnelManager) CreateTunnel(client *ssh.Client, localPort, remotePort int, name string) (int, error) {
+func (m *TunnelManager) CreateTunnel(client *sshclient.Client, localPort, remotePort int, name string) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -38,30 +39,71 @@ func (m *TunnelManager) CreateTunnel(client *ssh.Client, localPort, remotePort i
 		return 0, fmt.Errorf("tunnel %s already exists", name)
 	}
 
-	// 记录日志的函数
 	logFunc := func(msg string) {
 		m.logger.Info(msg)
 	}
 
-	// 查找可用端口
 	actualPort, err := FindAvailablePort(localPort, logFunc)
 	if err != nil {
 		return 0, fmt.Errorf("failed to find available port for tunnel %s: %w", name, err)
 	}
 
-	// 如果端口有变化，记录最终结果
 	if actualPort != localPort {
 		m.logger.Infof("Local Port %d was occupied, automatically switch to port %d", localPort, actualPort)
 	}
 
-	config := &ssh.TunnelConfig{
+	config := &sshclient.TunnelConfig{
 		LocalHost:  "127.0.0.1",
 		LocalPort:  actualPort,
 		RemoteHost: "127.0.0.1",
 		RemotePort: remotePort,
 	}
 
-	tunnel := ssh.NewTunnel(client.GetClient(), config)
+	tunnel := sshclient.NewTunnel(client.GetClient(), config)
+	if err := tunnel.Start(); err != nil {
+		return 0, fmt.Errorf("failed to start tunnel on port %d: %w", actualPort, err)
+	}
+
+	m.tunnels[name] = tunnel
+	return actualPort, nil
+}
+
+func (m *TunnelManager) CreateDedicatedTunnel(localPort, remotePort int, name string, dialer func() (*sshclient.Client, error)) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.tunnels[name]; exists {
+		return 0, fmt.Errorf("tunnel %s already exists", name)
+	}
+
+	logFunc := func(msg string) {
+		m.logger.Info(msg)
+	}
+
+	actualPort, err := FindAvailablePort(localPort, logFunc)
+	if err != nil {
+		return 0, fmt.Errorf("failed to find available port for tunnel %s: %w", name, err)
+	}
+
+	if actualPort != localPort {
+		m.logger.Infof("Local Port %d was occupied, automatically switch to port %d", localPort, actualPort)
+	}
+
+	config := &sshclient.TunnelConfig{
+		LocalHost:  "127.0.0.1",
+		LocalPort:  actualPort,
+		RemoteHost: "127.0.0.1",
+		RemotePort: remotePort,
+		Dialer: func() (*gossh.Client, error) {
+			cli, err := dialer()
+			if err != nil {
+				return nil, err
+			}
+			return cli.GetClient(), nil
+		},
+	}
+
+	tunnel := sshclient.NewTunnel(nil, config)
 	if err := tunnel.Start(); err != nil {
 		return 0, fmt.Errorf("failed to start tunnel on port %d: %w", actualPort, err)
 	}
@@ -98,7 +140,7 @@ func (m *TunnelManager) StopAllTunnels() error {
 		}
 	}
 
-	m.tunnels = make(map[string]*ssh.Tunnel)
+	m.tunnels = make(map[string]*sshclient.Tunnel)
 
 	if len(errors) > 0 {
 		return fmt.Errorf("multiple errors occurred: %v", errors)
@@ -141,7 +183,7 @@ func (m *TunnelManager) HasTunnel(name string) bool {
 	return exists
 }
 
-func (m *TunnelManager) GetTunnel(name string) (*ssh.Tunnel, bool) {
+func (m *TunnelManager) GetTunnel(name string) (*sshclient.Tunnel, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -149,7 +191,7 @@ func (m *TunnelManager) GetTunnel(name string) (*ssh.Tunnel, bool) {
 	return tunnel, exists
 }
 
-func (m *TunnelManager) UpdateSSHClient(client *ssh.Client) {
+func (m *TunnelManager) UpdateSSHClient(client *sshclient.Client) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -172,7 +214,7 @@ type PortForwardResult struct {
 	ActualPort int
 }
 
-func CreatePortForwards(client *ssh.Client, configs []ForwardConfig, manager *TunnelManager) ([]PortForwardResult, error) {
+func CreatePortForwards(client *sshclient.Client, configs []ForwardConfig, manager *TunnelManager) ([]PortForwardResult, error) {
 	var results []PortForwardResult
 
 	for i, config := range configs {
