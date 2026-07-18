@@ -16,8 +16,8 @@ echo "3. 显示 install 命令帮助："
 ./devssh install --help
 echo ""
 
-echo "4. 显示 forward 命令帮助："
-./devssh forward --help
+echo "4. 显示 fwd 命令帮助："
+./devssh fwd --help
 echo ""
 
 echo "5. 测试构建是否成功："
