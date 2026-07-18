@@ -7,23 +7,23 @@ version = "0.1.10"
 preview = ["pixi-build"]
 
 [tasks.clean_linux]
-cmd = "rm -f bin/devssh-linux-{{ arch }}"
+cmd = "VERSION=$(grep '^version =' pixi.toml | head -n 1 | sed 's/.*= \"\\(.*\\)\"/\\1/') && rm -f bin/devssh-$VERSION-linux-{{ arch }}"
 args = [{ arg = "arch", default = "amd64" }]
 cwd = "./"
 
 [tasks.build_linux_arch]
-cmd = "GOOS=linux GOARCH={{ arch }} go build -o bin/devssh-linux-{{ arch }} ./cmd/devssh/"
+cmd = "VERSION=$(grep '^version =' pixi.toml | head -n 1 | sed 's/.*= \"\\(.*\\)\"/\\1/') && GOOS=linux GOARCH={{ arch }} go build -o bin/devssh-$VERSION-linux-{{ arch }} ./cmd/devssh/"
 args = [{ arg = "arch", default = "amd64" }]
 cwd = "./"
 depends-on = [{ task = "clean_linux", args = ["{{ arch }}"] }]
 
 [tasks.clean_darwin]
-cmd = "rm -f bin/devssh-darwin-{{ arch }}"
+cmd = "VERSION=$(grep '^version =' pixi.toml | head -n 1 | sed 's/.*= \"\\(.*\\)\"/\\1/') && rm -f bin/devssh-$VERSION-darwin-{{ arch }}"
 args = [{ arg = "arch", default = "amd64" }]
 cwd = "./"
 
 [tasks.build_darwin_arch]
-cmd = "GOOS=darwin GOARCH={{ arch }} go build -o bin/devssh-darwin-{{ arch }} ./cmd/devssh/"
+cmd = "VERSION=$(grep '^version =' pixi.toml | head -n 1 | sed 's/.*= \"\\(.*\\)\"/\\1/') && GOOS=darwin GOARCH={{ arch }} go build -o bin/devssh-$VERSION-darwin-{{ arch }} ./cmd/devssh/"
 args = [{ arg = "arch", default = "amd64" }]
 cwd = "./"
 depends-on = [{ task = "clean_darwin", args = ["{{ arch }}"] }]
