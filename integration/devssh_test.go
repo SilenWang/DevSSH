@@ -184,7 +184,7 @@ exec socat TCP-LISTEN:$PORT,reuseaddr,fork SYSTEM:'printf "HTTP/1.1 200 OK\r\n\r
 }
 
 func (s *DevSSHIntegrationSuite) copyBinaryToArtifacts() {
-	devsshArtifact := filepath.Join(s.artifactDir, "devssh-0.1.9-linux-amd64")
+	devsshArtifact := filepath.Join(s.artifactDir, "devssh-0.1.10-linux-amd64")
 	input, err := os.ReadFile(s.binaryPath)
 	s.Require().NoError(err)
 	err = os.WriteFile(devsshArtifact, input, 0755)

@@ -10,8 +10,8 @@ import (
 )
 
 func TestGetDevSSHDownloadURL_Default(t *testing.T) {
-	url := GetDevSSHDownloadURL("0.1.9", "linux", "amd64")
-	assert.Equal(t, "https://github.com/SilenWang/DevSSH/releases/download/0.1.9/devssh-0.1.9-linux-amd64", url)
+	url := GetDevSSHDownloadURL("0.1.10", "linux", "amd64")
+	assert.Equal(t, "https://github.com/SilenWang/DevSSH/releases/download/0.1.10/devssh-0.1.10-linux-amd64", url)
 }
 
 func TestGetDevSSHDownloadURL_EnvOverride(t *testing.T) {
@@ -22,12 +22,12 @@ func TestGetDevSSHDownloadURL_EnvOverride(t *testing.T) {
 
 func TestGetDevSSHDownloadURL_EnvOverrideThenDefault(t *testing.T) {
 	os.Setenv(EnvDevSSHDownloadURL, "http://localhost:9999/test")
-	urlWithEnv := GetDevSSHDownloadURL("0.1.9", "linux", "amd64")
+	urlWithEnv := GetDevSSHDownloadURL("0.1.10", "linux", "amd64")
 	assert.Equal(t, "http://localhost:9999/test", urlWithEnv)
 	os.Unsetenv(EnvDevSSHDownloadURL)
 
-	urlDefault := GetDevSSHDownloadURL("0.1.9", "linux", "amd64")
-	assert.Equal(t, "https://github.com/SilenWang/DevSSH/releases/download/0.1.9/devssh-0.1.9-linux-amd64", urlDefault)
+	urlDefault := GetDevSSHDownloadURL("0.1.10", "linux", "amd64")
+	assert.Equal(t, "https://github.com/SilenWang/DevSSH/releases/download/0.1.10/devssh-0.1.10-linux-amd64", urlDefault)
 }
 
 func TestNewConfig(t *testing.T) {
