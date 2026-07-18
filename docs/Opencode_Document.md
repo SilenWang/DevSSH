@@ -60,10 +60,10 @@ devssh install user@hostname
 
 ```bash
 # 转发特定端口
-devssh forward user@hostname --ports 3000,8080:80
+devssh fwd user@hostname --ports 3000,8080:80
 
 # 自动检测并转发所有 Web 服务端口
-devssh forward user@hostname --auto
+devssh fwd user@hostname --auto
 ```
 
 ### 管理连接和配置
@@ -119,11 +119,11 @@ Flags:
       --timeout int SSH 连接超时时间（秒）(默认 30)
 ```
 
-### forward 命令
+### fwd 命令
 
 ```
 Usage:
-  devssh forward [host] [flags]
+  devssh fwd [host] [flags]
 
 Flags:
   -h, --help          帮助信息
@@ -131,7 +131,7 @@ Flags:
   -p, --port string   SSH 端口 (默认 "22")
       --key string    SSH 私钥路径
       --password string SSH 密码
-      --ports strings   要转发的端口 (例如: 3000, 8080:80)
+  -P, --ports strings   要转发的端口 (例如: 3000, 8080:80)
       --auto          自动检测运行的服务并转发其端口
       --timeout int   SSH 连接超时时间（秒）(默认 30)
 ```
@@ -364,8 +364,8 @@ devssh connect user@example.com --auto
 # 设置连接超时时间
 devssh connect user@example.com --timeout 60
 
-# 单独使用端口转发（forward命令用--ports）
-devssh forward user@example.com --ports 3000,8080:80
+# 单独使用端口转发（fwd命令用--ports）
+devssh fwd user@example.com --ports 3000,8080:80
 ```
 
 ### 示例 4：仅安装不连接

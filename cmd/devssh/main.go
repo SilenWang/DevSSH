@@ -207,7 +207,7 @@ func newForwardCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "forward [host]",
+		Use:   "fwd [host]",
 		Short: "Forward ports from remote host to local machine",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -356,7 +356,7 @@ func newForwardCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&port, "port", "p", "22", "SSH port")
 	cmd.Flags().StringVar(&keyPath, "key", "", "SSH private key path")
 	cmd.Flags().StringVar(&password, "password", "", "SSH password")
-	cmd.Flags().StringSliceVar(&forwards, "ports", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
+	cmd.Flags().StringSliceVarP(&forwards, "ports", "P", []string{}, "Ports to forward (e.g., 3000, 8080:80)")
 	cmd.Flags().BoolVar(&auto, "auto", false, "Auto-detect and forward web service ports")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "SSH connection timeout in seconds")
 	cmd.Flags().BoolVar(&keepalive, "keepalive", true, "Enable SSH connection keepalive")
