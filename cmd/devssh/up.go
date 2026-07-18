@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -369,6 +371,12 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	}
 
 	logger.Infof("%s is now accessible at http://localhost:%d", ideType, actualIDEPort)
+
+	url := fmt.Sprintf("http://localhost:%d", actualIDEPort)
+	if err := openBrowser(url); err != nil {
+		logger.Warnf("Failed to open browser: %v", err)
+	}
+
 	logger.Infof("Press Ctrl+C to stop...")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -383,4 +391,19 @@ func doUpCommand(client *ssh.Client, host string, ideType string, idePort int, v
 	}
 
 	return nil
+}
+
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	default:
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
+	return cmd.Start()
 }
